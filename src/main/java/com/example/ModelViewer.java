@@ -166,7 +166,7 @@ public class ModelViewer {
         };
     }
 
-    private void renderDepthCube(Vector3f lightPos) {
+    private void renderDepthCube(Vector3f lightPos, float time) {
         glViewport(0, 0, shadowSize, shadowSize);
         glBindFramebuffer(GL_FRAMEBUFFER, depthCubeFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
@@ -192,7 +192,7 @@ public class ModelViewer {
             glUniformMatrix4fv(uModelLoc, false, cybM.get(fb));
             cyborgModel.render();
 
-            // Corona ring
+            // Corona ring (with spin)
             int count = 8;
             float baseRadius = 4.5f;
             float var = 1.2f;
@@ -201,11 +201,14 @@ public class ModelViewer {
                 float radius = baseRadius + ((i % 3) * var);
                 float x = (float)Math.cos(angle) * radius;
                 float z = (float)Math.sin(angle) * radius;
+                float freq = 0.6f + 0.25f * (i % 5); // different frequency per bottle
+                float spin = time * freq;
                 Matrix4f coronaM = new Matrix4f()
                         .translate(x, 0.0f, z)
                         .rotateY(-angle)
                         .rotateX(coronaOrientX)
                         .rotateZ(coronaOrientZ)
+                        .rotateZ(spin)
                         .scale(coronaScale);
                 glUniformMatrix4fv(uModelLoc, false, coronaM.get(fb));
                 coronaModel.render();
@@ -222,7 +225,7 @@ public class ModelViewer {
             processInput();
 
             Vector3f lightPos = new Vector3f(0.0f, 0.0f, 0.0f);
-            renderDepthCube(lightPos);
+            renderDepthCube(lightPos, current);
 
             glViewport(0, 0, width, height);
             glClearColor(0.02f, 0.02f, 0.03f, 1.0f);
@@ -265,7 +268,7 @@ public class ModelViewer {
                 glUniformMatrix4fv(modelLoc, false, cybM.get(fb));
                 cyborgModel.render();
 
-                // Corona ring
+                // Corona ring (with spin)
                 glUniform1i(emissiveLoc, 0);
                 int count = 8;
                 float baseRadius = 4.5f;
@@ -275,11 +278,14 @@ public class ModelViewer {
                     float radius = baseRadius + ((i % 3) * var);
                     float x = (float)Math.cos(angle) * radius;
                     float z = (float)Math.sin(angle) * radius;
+                    float freq = 0.6f + 0.25f * (i % 5);
+                    float spin = current * freq;
                     Matrix4f coronaM = new Matrix4f()
                             .translate(x, 0.0f, z)
                             .rotateY(-angle)
                             .rotateX(coronaOrientX)
                             .rotateZ(coronaOrientZ)
+                            .rotateZ(spin)
                             .scale(coronaScale);
                     glUniformMatrix4fv(modelLoc, false, coronaM.get(fb));
                     coronaModel.render();
