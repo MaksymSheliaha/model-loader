@@ -49,6 +49,8 @@ public class ModelViewer {
     private float deltaTime;
     private float lastFrame;
 
+    private float orbitSpeedScale = 1.0f;
+
     public static void main(String[] args) { new ModelViewer().run(); }
 
     public void run() {
@@ -118,8 +120,8 @@ public class ModelViewer {
         glUniform1i(cubeLoc, 1);
 
         // Load models using Assimp + STB
-        coronaModel = ModelLoader.loadObjWithTexture("model/corona/Corona.obj", "model/corona/BotellaText.jpg");
-        cyborgModel = ModelLoader.loadObjWithTexture("model/cyborg/cyborg.obj", "model/cyborg/cyborg_diffuse.png");
+        coronaModel = ModelLoader.loadObjWithTexture("model/beer/beer.obj", "model/beer/14043_16_oz._Beer_Bottle_diff_final.jpg");
+        cyborgModel = ModelLoader.loadObjWithTexture("model/cyborg/cyborg.obj", "model/cyborg/cyborg_normal.png");
 
         // Compute per-model auto-scale so the max extent maps to a target size
         float targetSize = 2.0f; // world units for the largest side after scaling
@@ -192,20 +194,22 @@ public class ModelViewer {
             glUniformMatrix4fv(uModelLoc, false, cybM.get(fb));
             cyborgModel.render();
 
-            // Corona ring (with spin)
+            // Corona ring (with spin + orbit)
             int count = 8;
             float baseRadius = 4.5f;
             float var = 1.2f;
             for (int i = 0; i < count; i++) {
-                float angle = (float)(2.0 * Math.PI * i / count);
+                float baseAngle = (float)(2.0 * Math.PI * i / count);
+                float orbitFreq = 0.3f + 0.15f * (i % 7);
+                float angleTotal = baseAngle + time * orbitFreq * orbitSpeedScale;
                 float radius = baseRadius + ((i % 3) * var);
-                float x = (float)Math.cos(angle) * radius;
-                float z = (float)Math.sin(angle) * radius;
-                float freq = 0.6f + 0.25f * (i % 5); // different frequency per bottle
-                float spin = time * freq;
+                float x = (float)Math.cos(angleTotal) * radius;
+                float z = (float)Math.sin(angleTotal) * radius;
+                float spinFreq = 0.6f + 0.25f * (i % 5); // per-bottle self spin
+                float spin = time * spinFreq;
                 Matrix4f coronaM = new Matrix4f()
                         .translate(x, 0.0f, z)
-                        .rotateY(-angle)
+                        .rotateY(-angleTotal)
                         .rotateX(coronaOrientX)
                         .rotateZ(coronaOrientZ)
                         .rotateZ(spin)
@@ -268,21 +272,23 @@ public class ModelViewer {
                 glUniformMatrix4fv(modelLoc, false, cybM.get(fb));
                 cyborgModel.render();
 
-                // Corona ring (with spin)
+                // Corona ring (with spin + orbit)
                 glUniform1i(emissiveLoc, 0);
                 int count = 8;
                 float baseRadius = 4.5f;
                 float var = 1.2f;
                 for (int i = 0; i < count; i++) {
-                    float angle = (float)(2.0 * Math.PI * i / count);
+                    float baseAngle = (float)(2.0 * Math.PI * i / count);
+                    float orbitFreq = 0.3f + 0.15f * (i % 7);
+                    float angleTotal = baseAngle + current * orbitFreq * orbitSpeedScale;
                     float radius = baseRadius + ((i % 3) * var);
-                    float x = (float)Math.cos(angle) * radius;
-                    float z = (float)Math.sin(angle) * radius;
-                    float freq = 0.6f + 0.25f * (i % 5);
-                    float spin = current * freq;
+                    float x = (float)Math.cos(angleTotal) * radius;
+                    float z = (float)Math.sin(angleTotal) * radius;
+                    float spinFreq = 0.6f + 0.25f * (i % 5);
+                    float spin = current * spinFreq;
                     Matrix4f coronaM = new Matrix4f()
                             .translate(x, 0.0f, z)
-                            .rotateY(-angle)
+                            .rotateY(-angleTotal)
                             .rotateX(coronaOrientX)
                             .rotateZ(coronaOrientZ)
                             .rotateZ(spin)
@@ -303,6 +309,18 @@ public class ModelViewer {
         boolean left = glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS;
         boolean right = glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
         camera.processKeyboard(forward, back, left, right, deltaTime);
+
+        // Adjust orbit speed with +/- and numpad +/-
+        if (glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_KP_ADD) == GLFW_PRESS) {
+            orbitSpeedScale += 0.8f*0.01;
+            System.out.println(orbitSpeedScale);
+        }
+        if (glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS) {
+            orbitSpeedScale -= 0.8f*0.01;
+            System.out.println(orbitSpeedScale);
+        }
+        if (orbitSpeedScale < 0.05f) orbitSpeedScale = 0.05f;
+        if (orbitSpeedScale > 1000.0f) orbitSpeedScale = 1000.0f;
 
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
     }
