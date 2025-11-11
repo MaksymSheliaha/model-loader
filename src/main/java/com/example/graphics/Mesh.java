@@ -1,8 +1,5 @@
 package com.example.graphics;
 
-import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GL30;
-import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL11;
 
 import java.nio.FloatBuffer;
@@ -10,7 +7,6 @@ import java.nio.IntBuffer;
 
 import static org.lwjgl.opengl.GL15.*;
 import static org.lwjgl.opengl.GL30.*;
-import static org.lwjgl.opengl.GL20.*;
 import static org.lwjgl.system.MemoryUtil.*;
 
 public class Mesh {

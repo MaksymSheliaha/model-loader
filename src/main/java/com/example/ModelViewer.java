@@ -2,11 +2,8 @@ package com.example;
 
 import com.example.graphics.*;
 import org.joml.Matrix4f;
-import org.joml.Vector3f;
-import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
-import org.lwjgl.opengl.GL11;
 
 import java.nio.FloatBuffer;
 
@@ -25,6 +22,10 @@ public class ModelViewer {
 
     private Model coronaModel;
     private Model cyborgModel;
+
+    // Auto scale factors so both models look comparable in size
+    private float coronaScale = 1.0f;
+    private float cyborgScale = 1.0f;
 
     private float lastX = width / 2f;
     private float lastY = height / 2f;
@@ -70,7 +71,6 @@ public class ModelViewer {
 
     private void initScene() {
         shader = new ShaderProgram("shaders/basic.vert", "shaders/basic.frag");
-        // Bind sampler to texture unit 0 once
         int texLoc = shader.getUniformLocation("uTexture");
         glUseProgram(shader.id());
         glUniform1i(texLoc, 0);
@@ -78,6 +78,16 @@ public class ModelViewer {
         // Load models using Assimp + STB
         coronaModel = ModelLoader.loadObjWithTexture("model/corona/Corona.obj", "model/corona/BotellaText.jpg");
         cyborgModel = ModelLoader.loadObjWithTexture("model/cyborg/cyborg.obj", "model/cyborg/cyborg_diffuse.png");
+
+        // Compute per-model auto-scale so the max extent maps to a target size
+        float targetSize = 2.0f; // world units for the largest side after scaling
+        float coronaExtent = Math.max(1e-6f, coronaModel.getMaxExtent());
+        float cyborgExtent = Math.max(1e-6f, cyborgModel.getMaxExtent());
+        coronaScale = targetSize / coronaExtent;
+        cyborgScale = targetSize / cyborgExtent;
+
+        // If you want cyborg a bit larger than corona, multiply by a factor, e.g. 1.3x
+        cyborgScale *= 1.3f;
     }
 
     private void loop() {
@@ -104,26 +114,26 @@ public class ModelViewer {
                 Matrix4f view = camera.getViewMatrix();
                 glUniformMatrix4fv(viewLoc, false, view.get(fb));
 
-                // Draw cyborg in the center
+                // Draw cyborg in the center, auto-scaled
                 Matrix4f cybM = new Matrix4f()
                         .translate(0.0f, 0.0f, 0.0f)
-                        .scale(0.01f);
+                        .scale(cyborgScale);
                 glUniformMatrix4fv(modelLoc, false, cybM.get(fb));
                 cyborgModel.render();
 
-                // Draw eight corona models around it in XZ plane with varying distances
+                // Draw eight corona models around it in XZ plane with varying distances, auto-scaled
                 int count = 8;
-                float baseRadius = 3.5f;
+                float baseRadius = 4.5f; // increased slightly since scale changed
                 float var = 1.2f;
                 for (int i = 0; i < count; i++) {
                     float angle = (float)(2.0 * Math.PI * i / count);
-                    float radius = baseRadius + ((i % 3) * var); // vary distance
+                    float radius = baseRadius + ((i % 3) * var);
                     float x = (float)Math.cos(angle) * radius;
                     float z = (float)Math.sin(angle) * radius;
                     Matrix4f coronaM = new Matrix4f()
                             .translate(x, 0.0f, z)
-                            .rotateY(-angle) // face roughly toward center
-                            .scale(0.02f);
+                            .rotateY(-angle)
+                            .scale(coronaScale);
                     glUniformMatrix4fv(modelLoc, false, coronaM.get(fb));
                     coronaModel.render();
                 }

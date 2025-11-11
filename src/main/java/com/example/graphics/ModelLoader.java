@@ -1,5 +1,6 @@
 package com.example.graphics;
 
+import org.joml.Vector3f;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.assimp.*;
 
@@ -22,17 +23,22 @@ public class ModelLoader {
 
         int meshCount = scene.mNumMeshes();
         PointerBuffer meshes = scene.mMeshes();
+
+        Vector3f boundsMin = new Vector3f(Float.POSITIVE_INFINITY);
+        Vector3f boundsMax = new Vector3f(Float.NEGATIVE_INFINITY);
+
         for (int i = 0; i < meshCount; i++) {
             AIMesh mesh = AIMesh.create(meshes.get(i));
-            float[] vertices = extractVertices(mesh);
+            float[] vertices = extractVertices(mesh, boundsMin, boundsMax);
             int[] indices = extractIndices(mesh);
             model.addMesh(new Mesh(vertices, indices));
         }
+        model.setBounds(boundsMin, boundsMax);
         aiReleaseImport(scene);
         return model;
     }
 
-    private static float[] extractVertices(AIMesh mesh) {
+    private static float[] extractVertices(AIMesh mesh, Vector3f boundsMin, Vector3f boundsMax) {
         AIVector3D.Buffer positions = mesh.mVertices();
         AIVector3D.Buffer normals = mesh.mNormals();
         AIVector3D.Buffer texCoords = mesh.mTextureCoords(0);
@@ -43,14 +49,23 @@ public class ModelLoader {
             AIVector3D n = normals != null ? normals.get(i) : AIVector3D.create().set(0,0,1);
             AIVector3D t = texCoords != null ? texCoords.get(i) : AIVector3D.create().set(0,0,0);
             int base = i * 8;
-            verts[base] = p.x();
-            verts[base+1] = p.y();
-            verts[base+2] = p.z();
+            float px = p.x(); float py = p.y(); float pz = p.z();
+            verts[base] = px;
+            verts[base+1] = py;
+            verts[base+2] = pz;
             verts[base+3] = n.x();
             verts[base+4] = n.y();
             verts[base+5] = n.z();
             verts[base+6] = t.x();
             verts[base+7] = t.y();
+
+            // Update bounds
+            if (px < boundsMin.x) boundsMin.x = px;
+            if (py < boundsMin.y) boundsMin.y = py;
+            if (pz < boundsMin.z) boundsMin.z = pz;
+            if (px > boundsMax.x) boundsMax.x = px;
+            if (py > boundsMax.y) boundsMax.y = py;
+            if (pz > boundsMax.z) boundsMax.z = pz;
         }
         return verts;
     }
@@ -86,4 +101,3 @@ public class ModelLoader {
         }
     }
 }
-

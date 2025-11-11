@@ -1,7 +1,5 @@
 package com.example.graphics;
 
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL30;
 import org.lwjgl.stb.STBImage;
 
 import java.io.IOException;
