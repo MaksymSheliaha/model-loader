@@ -10,7 +10,10 @@ import java.nio.FloatBuffer;
 
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL13.*;
 import static org.lwjgl.opengl.GL20.*;
+import static org.lwjgl.opengl.GL30.*;
+import static org.lwjgl.opengl.GL32.*;
 import static org.lwjgl.system.MemoryStack.stackPush;
 
 public class ModelViewer {
@@ -19,6 +22,7 @@ public class ModelViewer {
     private int height = 720;
 
     private ShaderProgram shader;
+    private ShaderProgram depthCubeShader;
     private Camera camera = new Camera();
 
     private Model coronaModel;
@@ -31,6 +35,12 @@ public class ModelViewer {
     // Orientation correction angles (radians) for corona to stand vertical
     private float coronaOrientX = 0.0f;
     private float coronaOrientZ = 0.0f;
+
+    // Shadow cubemap
+    private int depthCubeFBO;
+    private int depthCubeTex;
+    private int shadowSize = 1024;
+    private float shadowFar = 25.0f;
 
     private float lastX = width / 2f;
     private float lastY = height / 2f;
@@ -74,11 +84,38 @@ public class ModelViewer {
         glEnable(GL_DEPTH_TEST);
     }
 
+    private void createDepthCubemap() {
+        depthCubeFBO = glGenFramebuffers();
+        depthCubeTex = glGenTextures();
+        glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubeTex);
+        for (int i = 0; i < 6; i++) {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_DEPTH_COMPONENT24, shadowSize, shadowSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+        }
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, depthCubeFBO);
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthCubeTex, 0);
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            throw new IllegalStateException("Depth cubemap FBO is not complete");
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
     private void initScene() {
         shader = new ShaderProgram("shaders/basic.vert", "shaders/basic.frag");
+        // depth cube uses geometry shader to expand to 6 faces
+        depthCubeShader = new ShaderProgram("shaders/depthCube.vert", "shaders/depthCube.geom", "shaders/depthCube.frag");
         int texLoc = shader.getUniformLocation("uTexture");
         glUseProgram(shader.id());
         glUniform1i(texLoc, 0);
+        int cubeLoc = shader.getUniformLocation("uDepthCube");
+        glUniform1i(cubeLoc, 1);
 
         // Load models using Assimp + STB
         coronaModel = ModelLoader.loadObjWithTexture("model/corona/Corona.obj", "model/corona/BotellaText.jpg");
@@ -108,6 +145,74 @@ public class ModelViewer {
             coronaOrientX = 0.0f;
             coronaOrientZ = 0.0f;
         }
+
+        createDepthCubemap();
+    }
+
+    private Matrix4f[] computeShadowMatrices(Vector3f lightPos) {
+        float near = 0.1f;
+        float far = shadowFar;
+        Matrix4f proj = new Matrix4f().perspective((float)Math.toRadians(90.0), 1.0f, near, far);
+        Vector3f upX = new Vector3f(0, -1, 0);
+        Vector3f upY = new Vector3f(0, 0, 1);
+        Vector3f upZ = new Vector3f(0, -1, 0);
+        return new Matrix4f[]{
+                new Matrix4f(proj).mul(new Matrix4f().lookAt(lightPos, new Vector3f(lightPos).add( 1, 0, 0), upX)), // +X
+                new Matrix4f(proj).mul(new Matrix4f().lookAt(lightPos, new Vector3f(lightPos).add(-1, 0, 0), upX)), // -X
+                new Matrix4f(proj).mul(new Matrix4f().lookAt(lightPos, new Vector3f(lightPos).add( 0, 1, 0), upY)), // +Y
+                new Matrix4f(proj).mul(new Matrix4f().lookAt(lightPos, new Vector3f(lightPos).add( 0,-1, 0), upY)), // -Y
+                new Matrix4f(proj).mul(new Matrix4f().lookAt(lightPos, new Vector3f(lightPos).add( 0, 0, 1), upZ)), // +Z
+                new Matrix4f(proj).mul(new Matrix4f().lookAt(lightPos, new Vector3f(lightPos).add( 0, 0,-1), upZ))  // -Z
+        };
+    }
+
+    private void renderDepthCube(Vector3f lightPos) {
+        glViewport(0, 0, shadowSize, shadowSize);
+        glBindFramebuffer(GL_FRAMEBUFFER, depthCubeFBO);
+        glClear(GL_DEPTH_BUFFER_BIT);
+
+        depthCubeShader.use();
+        int uFarLoc = depthCubeShader.getUniformLocation("uFar");
+        int uLightPosLoc = depthCubeShader.getUniformLocation("uLightPos");
+        int uModelLoc = depthCubeShader.getUniformLocation("uModel");
+        int uShadowMatLoc = glGetUniformLocation(depthCubeShader.id(), "uShadowMatrices[0]");
+
+        try (var stack = stackPush()) {
+            FloatBuffer fb = stack.mallocFloat(16);
+            glUniform1f(uFarLoc, shadowFar);
+            glUniform3f(uLightPosLoc, lightPos.x, lightPos.y, lightPos.z);
+
+            Matrix4f[] mats = computeShadowMatrices(lightPos);
+            for (int i = 0; i < 6; i++) {
+                glUniformMatrix4fv(uShadowMatLoc + i, false, mats[i].get(fb));
+            }
+
+            // Cyborg
+            Matrix4f cybM = new Matrix4f().scale(cyborgScale);
+            glUniformMatrix4fv(uModelLoc, false, cybM.get(fb));
+            cyborgModel.render();
+
+            // Corona ring
+            int count = 8;
+            float baseRadius = 4.5f;
+            float var = 1.2f;
+            for (int i = 0; i < count; i++) {
+                float angle = (float)(2.0 * Math.PI * i / count);
+                float radius = baseRadius + ((i % 3) * var);
+                float x = (float)Math.cos(angle) * radius;
+                float z = (float)Math.sin(angle) * radius;
+                Matrix4f coronaM = new Matrix4f()
+                        .translate(x, 0.0f, z)
+                        .rotateY(-angle)
+                        .rotateX(coronaOrientX)
+                        .rotateZ(coronaOrientZ)
+                        .scale(coronaScale);
+                glUniformMatrix4fv(uModelLoc, false, coronaM.get(fb));
+                coronaModel.render();
+            }
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
     private void loop() {
@@ -115,6 +220,9 @@ public class ModelViewer {
             float current = (float)glfwGetTime();
             deltaTime = current - lastFrame; lastFrame = current;
             processInput();
+
+            Vector3f lightPos = new Vector3f(0.0f, 0.0f, 0.0f);
+            renderDepthCube(lightPos);
 
             glViewport(0, 0, width, height);
             glClearColor(0.02f, 0.02f, 0.03f, 1.0f);
@@ -131,6 +239,7 @@ public class ModelViewer {
             int specLoc = shader.getUniformLocation("uSpecularStrength");
             int shinLoc = shader.getUniformLocation("uShininess");
             int emissiveLoc = shader.getUniformLocation("uEmissive");
+            int farLoc = shader.getUniformLocation("uFar");
 
             try (var stack = stackPush()) {
                 FloatBuffer fb = stack.mallocFloat(16);
@@ -139,24 +248,24 @@ public class ModelViewer {
                 Matrix4f view = camera.getViewMatrix();
                 glUniformMatrix4fv(viewLoc, false, view.get(fb));
 
-                // Light at cyborg origin (world origin, as cyborg is centered), tweak if needed
-                Vector3f lightPos = new Vector3f(0.0f, 0.0f, 0.0f);
                 glUniform3f(lightPosLoc, lightPos.x, lightPos.y, lightPos.z);
                 glUniform3f(lightColLoc, 1.0f, 0.95f, 0.85f);
                 glUniform3f(viewPosLoc, camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
-                glUniform1f(ambientLoc, 0.02f); // very low ambient so backside is nearly black
+                glUniform1f(ambientLoc, 0.02f);
                 glUniform1f(specLoc, 0.6f);
                 glUniform1f(shinLoc, 48.0f);
+                glUniform1f(farLoc, shadowFar);
 
-                // Draw cyborg in the center, emissive
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubeTex);
+
+                // Cyborg in the center (emissive)
                 glUniform1i(emissiveLoc, 1);
-                Matrix4f cybM = new Matrix4f()
-                        .translate(0.0f, 0.0f, 0.0f)
-                        .scale(cyborgScale);
+                Matrix4f cybM = new Matrix4f().scale(cyborgScale);
                 glUniformMatrix4fv(modelLoc, false, cybM.get(fb));
                 cyborgModel.render();
 
-                // Draw eight corona models around it in XZ plane with varying distances, auto-scaled
+                // Corona ring
                 glUniform1i(emissiveLoc, 0);
                 int count = 8;
                 float baseRadius = 4.5f;
@@ -196,6 +305,9 @@ public class ModelViewer {
         if (coronaModel != null) coronaModel.delete();
         if (cyborgModel != null) cyborgModel.delete();
         shader.delete();
+        depthCubeShader.delete();
+        if (depthCubeFBO != 0) glDeleteFramebuffers(depthCubeFBO);
+        if (depthCubeTex != 0) glDeleteTextures(depthCubeTex);
         glfwDestroyWindow(window);
         glfwTerminate();
     }
