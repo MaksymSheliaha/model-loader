@@ -2,6 +2,7 @@ package com.example;
 
 import com.example.graphics.*;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
 
@@ -26,6 +27,10 @@ public class ModelViewer {
     // Auto scale factors so both models look comparable in size
     private float coronaScale = 1.0f;
     private float cyborgScale = 1.0f;
+
+    // Orientation correction angles (radians) for corona to stand vertical
+    private float coronaOrientX = 0.0f;
+    private float coronaOrientZ = 0.0f;
 
     private float lastX = width / 2f;
     private float lastY = height / 2f;
@@ -85,9 +90,24 @@ public class ModelViewer {
         float cyborgExtent = Math.max(1e-6f, cyborgModel.getMaxExtent());
         coronaScale = targetSize / coronaExtent;
         cyborgScale = targetSize / cyborgExtent;
+        cyborgScale *= 1.3f; // make cyborg a bit larger
 
-        // If you want cyborg a bit larger than corona, multiply by a factor, e.g. 1.3x
-        cyborgScale *= 1.3f;
+        // Compute orientation correction for corona: align its longest axis to Y (vertical)
+        Vector3f min = coronaModel.getBoundsMin();
+        Vector3f max = coronaModel.getBoundsMax();
+        float dx = Math.abs(max.x - min.x);
+        float dy = Math.abs(max.y - min.y);
+        float dz = Math.abs(max.z - min.z);
+        if (dx >= dy && dx >= dz) {
+            coronaOrientZ = (float) Math.toRadians(90.0);
+            coronaOrientX = 0.0f;
+        } else if (dz >= dx && dz >= dy) {
+            coronaOrientX = (float) Math.toRadians(-90.0);
+            coronaOrientZ = 0.0f;
+        } else {
+            coronaOrientX = 0.0f;
+            coronaOrientZ = 0.0f;
+        }
     }
 
     private void loop() {
@@ -97,15 +117,20 @@ public class ModelViewer {
             processInput();
 
             glViewport(0, 0, width, height);
-            glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+            glClearColor(0.02f, 0.02f, 0.03f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             shader.use();
             int projLoc = shader.getUniformLocation("uProjection");
             int viewLoc = shader.getUniformLocation("uView");
             int modelLoc = shader.getUniformLocation("uModel");
-            int lightLoc = shader.getUniformLocation("uLightDir");
-            glUniform3f(lightLoc, -0.2f, -1.0f, -0.3f);
+            int lightPosLoc = shader.getUniformLocation("uLightPos");
+            int lightColLoc = shader.getUniformLocation("uLightColor");
+            int viewPosLoc = shader.getUniformLocation("uViewPos");
+            int ambientLoc = shader.getUniformLocation("uAmbient");
+            int specLoc = shader.getUniformLocation("uSpecularStrength");
+            int shinLoc = shader.getUniformLocation("uShininess");
+            int emissiveLoc = shader.getUniformLocation("uEmissive");
 
             try (var stack = stackPush()) {
                 FloatBuffer fb = stack.mallocFloat(16);
@@ -114,7 +139,17 @@ public class ModelViewer {
                 Matrix4f view = camera.getViewMatrix();
                 glUniformMatrix4fv(viewLoc, false, view.get(fb));
 
-                // Draw cyborg in the center, auto-scaled
+                // Light at cyborg origin (world origin, as cyborg is centered), tweak if needed
+                Vector3f lightPos = new Vector3f(0.0f, 0.0f, 0.0f);
+                glUniform3f(lightPosLoc, lightPos.x, lightPos.y, lightPos.z);
+                glUniform3f(lightColLoc, 1.0f, 0.95f, 0.85f);
+                glUniform3f(viewPosLoc, camera.getPosition().x, camera.getPosition().y, camera.getPosition().z);
+                glUniform1f(ambientLoc, 0.02f); // very low ambient so backside is nearly black
+                glUniform1f(specLoc, 0.6f);
+                glUniform1f(shinLoc, 48.0f);
+
+                // Draw cyborg in the center, emissive
+                glUniform1i(emissiveLoc, 1);
                 Matrix4f cybM = new Matrix4f()
                         .translate(0.0f, 0.0f, 0.0f)
                         .scale(cyborgScale);
@@ -122,8 +157,9 @@ public class ModelViewer {
                 cyborgModel.render();
 
                 // Draw eight corona models around it in XZ plane with varying distances, auto-scaled
+                glUniform1i(emissiveLoc, 0);
                 int count = 8;
-                float baseRadius = 4.5f; // increased slightly since scale changed
+                float baseRadius = 4.5f;
                 float var = 1.2f;
                 for (int i = 0; i < count; i++) {
                     float angle = (float)(2.0 * Math.PI * i / count);
@@ -133,6 +169,8 @@ public class ModelViewer {
                     Matrix4f coronaM = new Matrix4f()
                             .translate(x, 0.0f, z)
                             .rotateY(-angle)
+                            .rotateX(coronaOrientX)
+                            .rotateZ(coronaOrientZ)
                             .scale(coronaScale);
                     glUniformMatrix4fv(modelLoc, false, coronaM.get(fb));
                     coronaModel.render();

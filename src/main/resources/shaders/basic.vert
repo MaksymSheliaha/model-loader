@@ -18,4 +18,3 @@ void main() {
     vTex = aTex;
     gl_Position = uProjection * uView * worldPos;
 }
-
