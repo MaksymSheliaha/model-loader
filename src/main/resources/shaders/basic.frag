@@ -17,9 +17,16 @@ uniform float uAmbient;
 uniform float uSpecularStrength;
 uniform float uShininess;
 uniform bool uEmissive;
+uniform bool uUnlit; // if true, render texture without lighting
 
 void main() {
     vec3 baseColor = texture(uTexture, vTex).rgb;
+
+    if (uUnlit) {
+        FragColor = vec4(baseColor, 1.0);
+        return;
+    }
+
     vec3 N = normalize(vNormal);
     vec3 V = normalize(uViewPos - vFragPos);
 
@@ -37,7 +44,6 @@ void main() {
     }
 
     if (uEmissive) {
-        // Give a glow to emissive objects (bottles)
         lighting += 0.35 * vec3(1.0);
     }
 

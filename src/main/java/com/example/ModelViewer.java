@@ -37,7 +37,7 @@ public class ModelViewer {
     private float deltaTime;
     private float lastFrame;
 
-    private float orbitSpeedScale = 1.0f;
+    private float orbitSpeedScale = 0;//1.0f;
 
     public static void main(String[] args) { new ModelViewer().run(); }
 
@@ -81,7 +81,7 @@ public class ModelViewer {
         glUniform1i(texLoc, 0);
 
         // Load models (paths adjusted per your latest file)
-        coronaModel = ModelLoader.loadObjWithTexture("model/beer/beer.obj", "model/beer/14043_16_oz._Beer_Bottle_diff_final.jpg");
+        coronaModel = ModelLoader.loadObjWithTexture("model/stella/stella-artois.obj", "model/stella/STELLAARTOIS2.png");
         cyborgModel = ModelLoader.loadObjWithTexture("model/cyborg/cyborg.obj", "model/cyborg/cyborg_normal.png");
 
         float targetSize = 2.0f;
@@ -122,13 +122,13 @@ public class ModelViewer {
             int projLoc = shader.getUniformLocation("uProjection");
             int viewLoc = shader.getUniformLocation("uView");
             int modelLoc = shader.getUniformLocation("uModel");
-
             int lightCountLoc = shader.getUniformLocation("uLightCount");
             int viewPosLoc = shader.getUniformLocation("uViewPos");
             int ambientLoc = shader.getUniformLocation("uAmbient");
             int specLoc = shader.getUniformLocation("uSpecularStrength");
             int shinLoc = shader.getUniformLocation("uShininess");
             int emissiveLoc = shader.getUniformLocation("uEmissive");
+            int unlitLoc = shader.getUniformLocation("uUnlit");
 
             try (var stack = stackPush()) {
                 FloatBuffer fb = stack.mallocFloat(16);
@@ -142,32 +142,31 @@ public class ModelViewer {
                 glUniform1f(specLoc, 0.7f);
                 glUniform1f(shinLoc, 48.0f);
 
-                // Compute bottle transforms and collect their positions as light sources
                 int count = 8;
                 float baseRadius = 4.5f;
                 float var = 1.2f;
-                // Upload light count
                 glUniform1i(lightCountLoc, count);
                 for (int i = 0; i < count; i++) {
                     float baseAngle = (float)(2.0 * Math.PI * i / count);
-                    float orbitFreq = 0.3f + 0.15f * (i % 7);
+                    float orbitFreq = 0.3f + 0.15f  * (i % 7);
                     float angleTotal = baseAngle + current * orbitFreq * orbitSpeedScale;
                     float radius = baseRadius + ((i % 3) * var);
                     float x = (float)Math.cos(angleTotal) * radius;
                     float z = (float)Math.sin(angleTotal) * radius;
-                    int uPosLoc = glGetUniformLocation(shader.id(), ("uLightPos[" + i + "]"));
-                    int uColLoc = glGetUniformLocation(shader.id(), ("uLightColor[" + i + "]"));
+                    int uPosLoc = glGetUniformLocation(shader.id(), "uLightPos[" + i + "]");
+                    int uColLoc = glGetUniformLocation(shader.id(), "uLightColor[" + i + "]");
                     glUniform3f(uPosLoc, x, 0.0f, z);
                     glUniform3f(uColLoc, 1.0f, 0.95f, 0.85f);
                 }
 
-                // Draw cyborg in the center (not emissive)
+                // Cyborg (lit): uUnlit = false
+                glUniform1i(unlitLoc, 0);
                 glUniform1i(emissiveLoc, 0);
                 Matrix4f cybM = new Matrix4f().scale(cyborgScale);
                 glUniformMatrix4fv(modelLoc, false, cybM.get(fb));
                 cyborgModel.render();
 
-                // Draw bottles (emissive) with self spin + orbit
+                // Bottles (unlit texture + emissive glow)
                 for (int i = 0; i < count; i++) {
                     float baseAngle = (float)(2.0 * Math.PI * i / count);
                     float orbitFreq = 0.3f + 0.15f * (i % 7);
@@ -178,6 +177,7 @@ public class ModelViewer {
                     float spinFreq = 0.6f + 0.25f * (i % 5);
                     float spin = current * spinFreq;
                     glUniform1i(emissiveLoc, 1);
+                    glUniform1i(unlitLoc, 1); // do not shade texture
                     Matrix4f coronaM = new Matrix4f()
                             .translate(x, 0.0f, z)
                             .rotateY(-angleTotal)
