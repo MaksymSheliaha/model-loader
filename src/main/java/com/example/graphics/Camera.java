@@ -21,8 +21,17 @@ public class Camera {
 
     public void move(Vector3f delta) { position.add(delta); }
 
-    public void processKeyboard(boolean forward, boolean back, boolean left, boolean right, float deltaTime) {
+    public void processKeyboard(
+            boolean forward,
+            boolean back,
+            boolean left,
+            boolean right,
+            boolean up,
+            boolean down,
+            boolean shift,
+            float deltaTime) {
         float speed = 2.5f * deltaTime;
+        if(shift) speed*=2;
         Vector3f front = new Vector3f(
                 (float)Math.cos(Math.toRadians(yaw)) * (float)Math.cos(Math.toRadians(pitch)),
                 (float)Math.sin(Math.toRadians(pitch)),
@@ -33,6 +42,8 @@ public class Camera {
         if (back) position.sub(new Vector3f(front).mul(speed));
         if (left) position.sub(new Vector3f(rightVec).mul(speed));
         if (right) position.add(new Vector3f(rightVec).mul(speed));
+        if(up) position.add(new Vector3f(0,1,0).mul(speed));
+        if(down) position.sub(new Vector3f(0,1,0).mul(speed));
     }
 
     public void processMouse(float xoffset, float yoffset) {

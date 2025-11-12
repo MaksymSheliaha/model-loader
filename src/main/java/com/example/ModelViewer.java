@@ -22,13 +22,16 @@ public class ModelViewer {
     private ShaderProgram shader;
     private Camera camera = new Camera();
 
-    private Model coronaModel;
-    private Model cyborgModel;
+    // Bottles collection (6 distinct models)
+    private Model[] bottles;
+    private float[] bottleScale;
+    private float[] bottleOrientX;
+    private float[] bottleOrientZ;
+    private int[] bottleSpinAxis; // 0=Y, 1=X, 2=Z
 
-    private float coronaScale = 1.0f;
+    // Center model
+    private Model cyborgModel;
     private float cyborgScale = 1.0f;
-    private float coronaOrientX = 0.0f;
-    private float coronaOrientZ = 0.0f;
 
     private float lastX = width / 2f;
     private float lastY = height / 2f;
@@ -37,7 +40,7 @@ public class ModelViewer {
     private float deltaTime;
     private float lastFrame;
 
-    private float orbitSpeedScale = 0;//1.0f;
+    private float orbitSpeedScale = 1.0f;
 
     public static void main(String[] args) { new ModelViewer().run(); }
 
@@ -80,31 +83,57 @@ public class ModelViewer {
         glUseProgram(shader.id());
         glUniform1i(texLoc, 0);
 
-        // Load models (paths adjusted per your latest file)
-        coronaModel = ModelLoader.loadObjWithTexture("model/stella/stella-artois.obj", "model/stella/STELLAARTOIS2.png");
-        cyborgModel = ModelLoader.loadObjWithTexture("model/cyborg/cyborg.obj", "model/cyborg/cyborg_normal.png");
-
+        // Center model
+        cyborgModel = ModelLoader.loadObjWithTexture("model/cyborg/cyborg.obj", "model/cyborg/cyborg_diffuse.png");
         float targetSize = 2.0f;
-        float coronaExtent = Math.max(1e-6f, coronaModel.getMaxExtent());
-        float cyborgExtent = Math.max(1e-6f, cyborgModel.getMaxExtent());
-        coronaScale = targetSize / coronaExtent;
-        cyborgScale = targetSize / cyborgExtent;
-        cyborgScale *= 1.3f;
+        cyborgScale = targetSize / Math.max(1e-6f, cyborgModel.getMaxExtent());
+        cyborgScale *= 1.3f; // трохи більший кіборг
 
-        Vector3f min = coronaModel.getBoundsMin();
-        Vector3f max = coronaModel.getBoundsMax();
-        float dx = Math.abs(max.x - min.x);
-        float dy = Math.abs(max.y - min.y);
-        float dz = Math.abs(max.z - min.z);
-        if (dx >= dy && dx >= dz) {
-            coronaOrientZ = (float) Math.toRadians(90.0);
-            coronaOrientX = 0.0f;
-        } else if (dz >= dx && dz >= dy) {
-            coronaOrientX = (float) Math.toRadians(-90.0);
-            coronaOrientZ = 0.0f;
-        } else {
-            coronaOrientX = 0.0f;
-            coronaOrientZ = 0.0f;
+        // Six distinct bottle models/textures from resources/model
+        String[][] bottleRes = new String[][]{
+                {"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
+                {"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
+                {"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
+                {"model/corona/Corona.obj", "model/corona/BotellaText.jpg"},
+                {"model/heineken/heineken.obj", "model/heineken/material_baseColor.png"},
+                {"model/stella/stella-artois.obj", "model/stella/STELLAARTOIS2.png"}
+        };
+        bottles = new Model[bottleRes.length];
+        bottleScale = new float[bottleRes.length];
+        bottleOrientX = new float[bottleRes.length];
+        bottleOrientZ = new float[bottleRes.length];
+        bottleSpinAxis = new int[bottleRes.length];
+
+        for (int i = 0; i < bottleRes.length; i++) {
+            bottles[i] = ModelLoader.loadObjWithTexture(bottleRes[i][0], bottleRes[i][1]);
+            float extent = Math.max(1e-6f, bottles[i].getMaxExtent());
+            bottleScale[i] = targetSize / extent;
+
+            // Визначення найдовшої осі для орієнтації вертикально
+            Vector3f min = bottles[i].getBoundsMin();
+            Vector3f max = bottles[i].getBoundsMax();
+            float dx = Math.abs(max.x - min.x);
+            float dy = Math.abs(max.y - min.y);
+            float dz = Math.abs(max.z - min.z);
+            boolean xLongest = dx >= dy && dx >= dz;
+            boolean zLongest = dz >= dx && dz >= dy;
+
+            String modelPath = bottleRes[i][0];
+            boolean flip = modelPath.contains("bud") || modelPath.contains("stella") || modelPath.contains("heineken");
+
+            if (xLongest) {
+                bottleOrientZ[i] = (float)Math.toRadians(flip ? -90.0 : 90.0); // X -> Y
+                bottleOrientX[i] = 0.0f;
+                bottleSpinAxis[i] = 1; // обертання навколо (початкової) X -> стане Y
+            } else if (zLongest) {
+                bottleOrientX[i] = (float)Math.toRadians(flip ? 90.0 : -90.0); // Z -> Y
+                bottleOrientZ[i] = 0.0f;
+                bottleSpinAxis[i] = 2; // обертання навколо (початкової) Z -> стане Y
+            } else {
+                bottleOrientX[i] = 0.0f;
+                bottleOrientZ[i] = 0.0f;
+                bottleSpinAxis[i] = 0; // вже по Y
+            }
         }
     }
 
@@ -142,51 +171,59 @@ public class ModelViewer {
                 glUniform1f(specLoc, 0.7f);
                 glUniform1f(shinLoc, 48.0f);
 
-                int count = 8;
+                int count = bottles.length; // 6 lights from bottles
                 float baseRadius = 4.5f;
-                float var = 1.2f;
                 glUniform1i(lightCountLoc, count);
                 for (int i = 0; i < count; i++) {
                     float baseAngle = (float)(2.0 * Math.PI * i / count);
-                    float orbitFreq = 0.3f + 0.15f  * (i % 7);
+                    float orbitFreq = 0.3f + 0.15f * (i % 7);
                     float angleTotal = baseAngle + current * orbitFreq * orbitSpeedScale;
-                    float radius = baseRadius + ((i % 3) * var);
-                    float x = (float)Math.cos(angleTotal) * radius;
-                    float z = (float)Math.sin(angleTotal) * radius;
+                    float x = (float)Math.cos(angleTotal) * baseRadius;
+                    float z = (float)Math.sin(angleTotal) * baseRadius;
                     int uPosLoc = glGetUniformLocation(shader.id(), "uLightPos[" + i + "]");
                     int uColLoc = glGetUniformLocation(shader.id(), "uLightColor[" + i + "]");
                     glUniform3f(uPosLoc, x, 0.0f, z);
                     glUniform3f(uColLoc, 1.0f, 0.95f, 0.85f);
                 }
 
-                // Cyborg (lit): uUnlit = false
+                // Cyborg (lit)
                 glUniform1i(unlitLoc, 0);
                 glUniform1i(emissiveLoc, 0);
                 Matrix4f cybM = new Matrix4f().scale(cyborgScale);
                 glUniformMatrix4fv(modelLoc, false, cybM.get(fb));
                 cyborgModel.render();
 
-                // Bottles (unlit texture + emissive glow)
-                for (int i = 0; i < count; i++) {
-                    float baseAngle = (float)(2.0 * Math.PI * i / count);
+                // Bottles (unlit + emissive)
+                for (int i = 0; i < bottles.length; i++) {
+                    float baseAngle = (float)(2.0 * Math.PI * i / bottles.length);
                     float orbitFreq = 0.3f + 0.15f * (i % 7);
                     float angleTotal = baseAngle + current * orbitFreq * orbitSpeedScale;
-                    float radius = baseRadius + ((i % 3) * var);
+                    float radius = baseRadius; // однаковий радіус
                     float x = (float)Math.cos(angleTotal) * radius;
                     float z = (float)Math.sin(angleTotal) * radius;
                     float spinFreq = 0.6f + 0.25f * (i % 5);
                     float spin = current * spinFreq;
+
+                    glUniform1i(unlitLoc, 1);
                     glUniform1i(emissiveLoc, 1);
-                    glUniform1i(unlitLoc, 1); // do not shade texture
-                    Matrix4f coronaM = new Matrix4f()
+
+                    Matrix4f m = new Matrix4f()
                             .translate(x, 0.0f, z)
-                            .rotateY(-angleTotal)
-                            .rotateX(coronaOrientX)
-                            .rotateZ(coronaOrientZ)
-                            .rotateZ(spin)
-                            .scale(coronaScale);
-                    glUniformMatrix4fv(modelLoc, false, coronaM.get(fb));
-                    coronaModel.render();
+                            .rotateY(-angleTotal) // обличчям до центру
+                            .rotateX(bottleOrientX[i])
+                            .rotateZ(bottleOrientZ[i])
+                            .scale(bottleScale[i]);
+
+                    // Обертання навколо власної вертикальної осі (після орієнтації вона тепер Y)
+                    m=switch (bottleSpinAxis[i]) {
+                        case 0 -> m.rotateY(spin);
+                        case 1 -> m.rotateX(spin);
+                        case 2 -> m.rotateZ(spin);
+                        default -> m;
+                    };
+
+                    glUniformMatrix4fv(modelLoc, false, m.get(fb));
+                    bottles[i].render();
                 }
             }
 
@@ -200,7 +237,10 @@ public class ModelViewer {
         boolean back = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
         boolean left = glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS;
         boolean right = glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
-        camera.processKeyboard(forward, back, left, right, deltaTime);
+        boolean up = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+        boolean down = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS;
+        boolean shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
+        camera.processKeyboard(forward, back, left, right, up, down, shift, deltaTime);
 
         if (glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_KP_ADD) == GLFW_PRESS) {
             orbitSpeedScale += 0.8f * 0.01f;
@@ -215,7 +255,7 @@ public class ModelViewer {
     }
 
     private void cleanup() {
-        if (coronaModel != null) coronaModel.delete();
+        if (bottles != null) for (Model m : bottles) if (m != null) m.delete();
         if (cyborgModel != null) cyborgModel.delete();
         shader.delete();
         glfwDestroyWindow(window);
