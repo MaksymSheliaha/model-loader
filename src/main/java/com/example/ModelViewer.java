@@ -51,14 +51,19 @@ public class ModelViewer {
     private final float speedMax = 5.0f; // speed where radius reaches min
     private final float tiltSpeedMin = 8.0f; // speed where radius starts to shrink
     private final float tiltSpeedMax = 20.0f; // speed where radius reaches min
-    private final float rotationSpeedMin = 15.0f; // speed where radius starts to shrink
-    private final float rotationSpeedMax = 25.0f; // speed where radius reaches min
+    private final float rotationSpeedMin = 15.0f; // speed where cyborg rotation starts
+    private final float rotationSpeedMax = 25.0f; // speed where cyborg rotation reaches max
     private final float absorbSpeedMin = 20.f;
     private final float absorbSpeedMax = 25.f;
     // Tilt control
     private float tiltPhase = (float)Math.PI/2.f; // evolves over time when speed >= threshold
     private static final float MAX_TILT = (float)(Math.PI / 4.0); // [-pi/4, pi/4]
     private static final float TILT_SPEED_GAIN = 0.5f; // rad/s per unit over threshold
+
+    // Cyborg rotation state (to avoid jerks)
+    private float cyborgAngle = 0.0f;  // accumulated rotation angle (radians)
+    private float cyborgOmega = 0.0f;  // current angular velocity (rad/s), smoothed
+    private final float cyborgOmegaMax = 3.0f; // max angular speed at rotationSpeedMax (rad/s)
 
     public static void main(String[] args) { new ModelViewer().run(); }
 
@@ -297,15 +302,24 @@ public class ModelViewer {
                     glUniform3f(uColLoc, 1.0f, 0.95f, 0.85f);
                 }
 
-                // Cyborg (lit)
+                // Cyborg (lit) — smooth speed-dependent rotation without snapping
                 glUniform1i(unlitLoc, 0);
                 glUniform1i(emissiveLoc, 0);
                 Matrix4f cybM = new Matrix4f().scale(cyborgScale);
-                if(orbitSpeedScale > rotationSpeedMin){
-                    float spinFreq = 0.6f + 0.25f;
-                    float spin = current * spinFreq;
-                    cybM.rotateY(spin);
-                }
+                // Map orbitSpeedScale -> target angular velocity via smoothstep
+                float sRot = (orbitSpeedScale - rotationSpeedMin) / (rotationSpeedMax - rotationSpeedMin);
+                if (sRot < 0f) sRot = 0f; if (sRot > 1f) sRot = 1f;
+                sRot = sRot * sRot * (3f - 2f * sRot); // smoothstep
+                float targetOmega = cyborgOmegaMax * sRot;
+                // Smooth omega to avoid abrupt jumps
+                float omegaSmooth = 1f - (float)Math.exp(-4f * Math.max(0.0001f, deltaTime));
+                cyborgOmega += (targetOmega - cyborgOmega) * omegaSmooth;
+                // Integrate angle
+                cyborgAngle += cyborgOmega * deltaTime;
+                if (cyborgAngle > Math.PI * 2) cyborgAngle -= (float)(Math.PI * 2);
+                if (cyborgAngle < -Math.PI * 2) cyborgAngle += (float)(Math.PI * 2);
+                cybM.rotateY(cyborgAngle);
+
                 glUniformMatrix4fv(modelLoc, false, cybM.get(fb));
                 cyborgModel.render();
 
