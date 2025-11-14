@@ -49,6 +49,12 @@ public class ModelViewer {
     private float currentRadius;        // smoothed radius used for orbiting
     private final float speedMin = 0.2f; // speed where radius starts to shrink
     private final float speedMax = 3.0f; // speed where radius reaches min
+    // Tilt control
+    private float tiltPhase = 0.0f; // evolves over time when speed >= threshold
+    private static final float MAX_TILT = (float)(Math.PI / 4.0); // [-pi/4, pi/4]
+    private static final float TILT_SPEED_THRESHOLD = 8.0f; // start tilting at this speed
+    private static final float TILT_SPEED_GAIN = 0.5f; // rad/s per unit over threshold
+    private static final float TILT_SPEED_MAX = 6.0f; // clamp to avoid too fast
 
     public static void main(String[] args) { new ModelViewer().run(); }
 
@@ -116,12 +122,18 @@ public class ModelViewer {
         Vector3f cmax = cyborgModel.getBoundsMax();
         Vector3f size = new Vector3f(cmax).sub(cmin).mul(cyborgScale);
         float cyborgRadius = size.length() * 0.5f; // half of diagonal length
-        minRadius = 1.0f * cyborgRadius;
+        minRadius = cyborgRadius;
         maxRadius = 5.0f * cyborgRadius;
         currentRadius = maxRadius; // start wide
 
         // Six distinct bottle models/textures from resources/model
         String[][] bottleRes = new String[][]{
+                {"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
+                {"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
+                {"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
+                {"model/heineken/heineken.obj", "model/heineken/material_baseColor.png"},
+                {"model/corona/Corona.obj", "model/corona/BotellaText.jpg"},
+                {"model/stella/stella-artois.obj", "model/stella/STELLAARTOIS2.png"},
                 {"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
                 {"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
                 {"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
@@ -228,17 +240,30 @@ public class ModelViewer {
                 float smooth = 1f - (float)Math.exp(-5f * Math.max(0.0001f, deltaTime));
                 currentRadius += (targetRadius - currentRadius) * smooth;
 
-                int count = bottles.length; // 6 lights from bottles
+                // Update tilt phase if speed above threshold
+                if (orbitSpeedScale >= TILT_SPEED_THRESHOLD) {
+                    float omega = TILT_SPEED_GAIN * (orbitSpeedScale - TILT_SPEED_THRESHOLD);
+                    if (omega > TILT_SPEED_MAX) omega = TILT_SPEED_MAX;
+                    tiltPhase += omega * deltaTime;
+                }
+                float tilt = (float)Math.cos(tiltPhase) * MAX_TILT; // [-pi/4..pi/4]
+                float sTilt = (float)Math.sin(tilt);
+                float cTilt = (float)Math.cos(tilt);
+
+                int count = bottles.length; // lights near bottles
                 glUniform1i(lightCountLoc, count);
                 for (int i = 0; i < count; i++) {
                     float baseAngle = (float)(2.0 * Math.PI * i / count);
                     float orbitFreq = 0.3f + 0.15f * (i % 7);
                     float angleTotal = baseAngle + current * orbitFreq * orbitSpeedScale;
-                    float x = (float)Math.cos(angleTotal) * currentRadius;
-                    float z = (float)Math.sin(angleTotal) * currentRadius;
+                    float xBase = (float)Math.cos(angleTotal) * currentRadius;
+                    float zBase = (float)Math.sin(angleTotal) * currentRadius;
+                    // Rotate around X by tilt: (x, y=0, z) -> (x, y'=-z*sin, z'=z*cos)
+                    float yPos = -zBase * sTilt;
+                    float zPos =  zBase * cTilt;
                     int uPosLoc = glGetUniformLocation(shader.id(), "uLightPos[" + i + "]");
                     int uColLoc = glGetUniformLocation(shader.id(), "uLightColor[" + i + "]");
-                    glUniform3f(uPosLoc, x, 0.0f, z);
+                    glUniform3f(uPosLoc, xBase, yPos, zPos);
                     glUniform3f(uColLoc, 1.0f, 0.95f, 0.85f);
                 }
 
@@ -259,8 +284,10 @@ public class ModelViewer {
                     float baseAngle = (float)(2.0 * Math.PI * i / bottles.length);
                     float orbitFreq = 0.3f + 0.15f;// * (i % 7);
                     float angleTotal = baseAngle + current * orbitFreq * orbitSpeedScale;
-                    float x = (float)Math.cos(angleTotal) * currentRadius;
-                    float z = (float)Math.sin(angleTotal) * currentRadius;
+                    float xBase = (float)Math.cos(angleTotal) * currentRadius;
+                    float zBase = (float)Math.sin(angleTotal) * currentRadius;
+                    float yOff = -zBase * sTilt;
+                    float zPos =  zBase * cTilt;
                     float spinFreq = 0.6f + 0.25f * (i % 5);
                     float spin = current * spinFreq;
 
@@ -268,13 +295,12 @@ public class ModelViewer {
                     glUniform1i(emissiveLoc, 1);
 
                     Matrix4f m = new Matrix4f()
-                            .translate(x, cyborgMidY, z)
-                            .rotateY(-angleTotal) // обличчям до центру
+                            .translate(xBase, cyborgMidY + yOff, zPos)
+                            .rotateY(-angleTotal) // face to center (approx)
                             .rotateX(bottleOrientX[i])
                             .rotateZ(bottleOrientZ[i])
                             .scale(bottleScale[i]);
 
-                    // Обертання навколо власної вертикальної осі (після орієнтації вона тепер Y)
                     m=switch (bottleSpinAxis[i]) {
                         case 0 -> m.rotateY(spin);
                         case 1 -> m.rotateX(spin);
@@ -303,12 +329,14 @@ public class ModelViewer {
         camera.processKeyboard(forward, back, left, right, up, down, shift, deltaTime);
 
         if (glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_KP_ADD) == GLFW_PRESS) {
-            orbitSpeedScale += 0.8f * 0.01f;
+            orbitSpeedScale += 0.8f * 0.1f;
+            System.out.println(orbitSpeedScale);
         }
         if (glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS) {
-            orbitSpeedScale -= 0.8f * 0.01f;
+            orbitSpeedScale -= 0.8f * 0.1f;
+            System.out.println(orbitSpeedScale);
         }
-        if (orbitSpeedScale < 0.05f) orbitSpeedScale = 0.05f;
+        if (orbitSpeedScale < -1000f) orbitSpeedScale = -1000f;
         if (orbitSpeedScale > 1000.0f) orbitSpeedScale = 1000.0f;
 
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
