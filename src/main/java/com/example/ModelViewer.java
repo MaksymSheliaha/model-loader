@@ -50,7 +50,7 @@ public class ModelViewer {
     private final float speedMin = 0.2f; // speed where radius starts to shrink
     private final float speedMax = 3.0f; // speed where radius reaches min
     // Tilt control
-    private float tiltPhase = 0f; // evolves over time when speed >= threshold
+    private float tiltPhase = (float)Math.PI/2.f; // evolves over time when speed >= threshold
     private static final float MAX_TILT = (float)(Math.PI / 4.0); // [-pi/4, pi/4]
     private static final float TILT_SPEED_THRESHOLD = 8.0f; // start tilting at this speed
     private static final float TILT_SPEED_GAIN = 0.5f; // rad/s per unit over threshold
