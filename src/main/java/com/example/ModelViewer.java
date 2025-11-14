@@ -50,7 +50,7 @@ public class ModelViewer {
     private final float speedMin = 0.2f; // speed where radius starts to shrink
     private final float speedMax = 3.0f; // speed where radius reaches min
     // Tilt control
-    private float tiltPhase = 0.0f; // evolves over time when speed >= threshold
+    private float tiltPhase = 0f; // evolves over time when speed >= threshold
     private static final float MAX_TILT = (float)(Math.PI / 4.0); // [-pi/4, pi/4]
     private static final float TILT_SPEED_THRESHOLD = 8.0f; // start tilting at this speed
     private static final float TILT_SPEED_GAIN = 0.5f; // rad/s per unit over threshold
@@ -259,11 +259,12 @@ public class ModelViewer {
                     float xBase = (float)Math.cos(angleTotal) * currentRadius;
                     float zBase = (float)Math.sin(angleTotal) * currentRadius;
                     // Rotate around X by tilt: (x, y=0, z) -> (x, y'=-z*sin, z'=z*cos)
-                    float yPos = -zBase * sTilt;
-                    float zPos =  zBase * cTilt;
+                    float xPos =  xBase * cTilt;
+                    float yPos =  xBase * sTilt;
+                    float zPos =  zBase;
                     int uPosLoc = glGetUniformLocation(shader.id(), "uLightPos[" + i + "]");
                     int uColLoc = glGetUniformLocation(shader.id(), "uLightColor[" + i + "]");
-                    glUniform3f(uPosLoc, xBase, yPos, zPos);
+                    glUniform3f(uPosLoc, xPos, yPos, zPos);
                     glUniform3f(uColLoc, 1.0f, 0.95f, 0.85f);
                 }
 
@@ -286,8 +287,9 @@ public class ModelViewer {
                     float angleTotal = baseAngle + current * orbitFreq * orbitSpeedScale;
                     float xBase = (float)Math.cos(angleTotal) * currentRadius;
                     float zBase = (float)Math.sin(angleTotal) * currentRadius;
-                    float yOff = -zBase * sTilt;
-                    float zPos =  zBase * cTilt;
+                    float yOff = xBase * sTilt;
+                    float xPos =  xBase * cTilt;
+                    float zPos =  zBase;
                     float spinFreq = 0.6f + 0.25f * (i % 5);
                     float spin = current * spinFreq;
 
@@ -295,7 +297,7 @@ public class ModelViewer {
                     glUniform1i(emissiveLoc, 1);
 
                     Matrix4f m = new Matrix4f()
-                            .translate(xBase, cyborgMidY + yOff, zPos)
+                            .translate(xPos, cyborgMidY + yOff, zPos)
                             .rotateY(-angleTotal) // face to center (approx)
                             .rotateX(bottleOrientX[i])
                             .rotateZ(bottleOrientZ[i])
