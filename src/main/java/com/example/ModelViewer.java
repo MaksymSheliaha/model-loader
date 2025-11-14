@@ -48,13 +48,17 @@ public class ModelViewer {
     private float minRadius, maxRadius; // min = 1x cyborg radius, max = 5x cyborg radius
     private float currentRadius;        // smoothed radius used for orbiting
     private final float speedMin = 0.2f; // speed where radius starts to shrink
-    private final float speedMax = 3.0f; // speed where radius reaches min
+    private final float speedMax = 5.0f; // speed where radius reaches min
+    private final float tiltSpeedMin = 8.0f; // speed where radius starts to shrink
+    private final float tiltSpeedMax = 20.0f; // speed where radius reaches min
+    private final float rotationSpeedMin = 15.0f; // speed where radius starts to shrink
+    private final float rotationSpeedMax = 25.0f; // speed where radius reaches min
+    private final float absorbSpeedMin = 20.f;
+    private final float absorbSpeedMax = 25.f;
     // Tilt control
     private float tiltPhase = (float)Math.PI/2.f; // evolves over time when speed >= threshold
     private static final float MAX_TILT = (float)(Math.PI / 4.0); // [-pi/4, pi/4]
-    private static final float TILT_SPEED_THRESHOLD = 8.0f; // start tilting at this speed
     private static final float TILT_SPEED_GAIN = 0.5f; // rad/s per unit over threshold
-    private static final float TILT_SPEED_MAX = 6.0f; // clamp to avoid too fast
 
     public static void main(String[] args) { new ModelViewer().run(); }
 
@@ -128,6 +132,18 @@ public class ModelViewer {
 
         // Six distinct bottle models/textures from resources/model
         String[][] bottleRes = new String[][]{
+                {"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
+                {"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
+                {"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
+                {"model/heineken/heineken.obj", "model/heineken/material_baseColor.png"},
+                {"model/corona/Corona.obj", "model/corona/BotellaText.jpg"},
+                {"model/stella/stella-artois.obj", "model/stella/STELLAARTOIS2.png"},
+                {"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
+                {"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
+                {"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
+                {"model/heineken/heineken.obj", "model/heineken/material_baseColor.png"},
+                {"model/corona/Corona.obj", "model/corona/BotellaText.jpg"},
+                {"model/stella/stella-artois.obj", "model/stella/STELLAARTOIS2.png"},
                 {"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
                 {"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
                 {"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
@@ -233,18 +249,31 @@ public class ModelViewer {
                 glUniform1f(shinLoc, 48.0f);
 
                 // Update target orbit radius based on orbit speed: higher speed -> smaller radius
-                float t = (orbitSpeedScale - speedMin) / (speedMax - speedMin);
-                if (t < 0f) t = 0f; if (t > 1f) t = 1f;
-                float targetRadius = maxRadius + (minRadius - maxRadius) * t; // mix(max,min,t)
+
+                float targetRadius;
+                if(orbitSpeedScale<absorbSpeedMin){
+                    float t = (orbitSpeedScale - speedMin) / (speedMax - speedMin);
+                    if (t < 0f) t = 0f; if (t > 1f) t = 1f;
+                    targetRadius = maxRadius + (minRadius - maxRadius) * t; // mix(max,min,t)
+                } else{
+                    float t = (orbitSpeedScale - absorbSpeedMin) / (absorbSpeedMax - absorbSpeedMin);
+                    if (t < 0f) t = 0f; if (t > 1f) t = 1f;
+                    targetRadius = minRadius + (0 - minRadius) * t; // mix(max,min,t)
+                }
                 // Smooth towards target (deltaTime-based smoothing)
                 float smooth = 1f - (float)Math.exp(-5f * Math.max(0.0001f, deltaTime));
                 currentRadius += (targetRadius - currentRadius) * smooth;
 
                 // Update tilt phase if speed above threshold
-                if (orbitSpeedScale >= TILT_SPEED_THRESHOLD) {
-                    float omega = TILT_SPEED_GAIN * (orbitSpeedScale - TILT_SPEED_THRESHOLD);
-                    if (omega > TILT_SPEED_MAX) omega = TILT_SPEED_MAX;
+                if (orbitSpeedScale >= tiltSpeedMin) {
+                    float omega;
+                    if (orbitSpeedScale < tiltSpeedMax){
+                        omega = TILT_SPEED_GAIN * (orbitSpeedScale - tiltSpeedMin);
+                    } else{
+                        omega = TILT_SPEED_GAIN * (tiltSpeedMax - tiltSpeedMin);
+                    }
                     tiltPhase += omega * deltaTime;
+                    if(tiltPhase>Math.PI) tiltPhase -= (float) (Math.PI*2);
                 }
                 float tilt = (float)Math.cos(tiltPhase) * MAX_TILT; // [-pi/4..pi/4]
                 float sTilt = (float)Math.sin(tilt);
@@ -272,6 +301,11 @@ public class ModelViewer {
                 glUniform1i(unlitLoc, 0);
                 glUniform1i(emissiveLoc, 0);
                 Matrix4f cybM = new Matrix4f().scale(cyborgScale);
+                if(orbitSpeedScale > rotationSpeedMin){
+                    float spinFreq = 0.6f + 0.25f;
+                    float spin = current * spinFreq;
+                    cybM.rotateY(spin);
+                }
                 glUniformMatrix4fv(modelLoc, false, cybM.get(fb));
                 cyborgModel.render();
 
