@@ -47,14 +47,14 @@ public class ModelViewer {
     // Radius control based on cyborg size
     private float minRadius, maxRadius; // min = 1x cyborg radius, max = 5x cyborg radius
     private float currentRadius;        // smoothed radius used for orbiting
-    private final float speedMin = 0.2f; // speed where radius starts to shrink
-    private final float speedMax = 5.0f; // speed where radius reaches min
-    private final float tiltSpeedMin = 8.0f; // speed where radius starts to shrink
-    private final float tiltSpeedMax = 20.0f; // speed where radius reaches min
-    private final float rotationSpeedMin = 15.0f; // speed where cyborg rotation starts
-    private final float rotationSpeedMax = 25.0f; // speed where cyborg rotation reaches max
-    private final float absorbSpeedMin = 20.f;
-    private final float absorbSpeedMax = 25.f;
+    private final float speedMin = 0.1f; // speed where radius starts to shrink
+    private final float speedMax = 2.5f; // speed where radius reaches min
+    private final float tiltSpeedMin = 4.0f; // speed where radius starts to shrink
+    private final float tiltSpeedMax = 10.0f; // speed where radius reaches min
+    private final float rotationSpeedMin = 7.5f; // speed where cyborg rotation starts
+    private final float rotationSpeedMax = 12.5f; // speed where cyborg rotation reaches max
+    private final float absorbSpeedMin = 10.f;
+    private final float absorbSpeedMax = 12.5f;
     // Tilt control
     private float tiltPhase = (float)Math.PI/2.f; // evolves over time when speed >= threshold
     private static final float MAX_TILT = (float)(Math.PI / 4.0); // [-pi/4, pi/4]
@@ -346,7 +346,7 @@ public class ModelViewer {
                     // Bottles (unlit + emissive)
                     for (int i = 0; i < bottles.length; i++) {
                         float baseAngle = (float) (2.0 * Math.PI * i / bottles.length);
-                        float orbitFreq = 0.3f + 0.15f * (i % 7);
+                        float orbitFreq = 0.3f + 0.15f;// * (i % 7);
                         float angleTotal = baseAngle + current * orbitFreq * orbitSpeedScale;
                         float xBase = (float) Math.cos(angleTotal) * currentRadius;
                         float zBase = (float) Math.sin(angleTotal) * currentRadius;
@@ -354,7 +354,7 @@ public class ModelViewer {
                         float xPos = xBase * cTilt;
                         float yPos = cyborgMidY + yOff;
                         float zPos = zBase;
-                        float spinFreq = 0.6f + 0.25f * (i % 5);
+                        float spinFreq = 0.8f + 0.25f * (i % 5);
                         float spin = current * spinFreq;
 
                         // For light
@@ -409,7 +409,7 @@ public class ModelViewer {
             orbitSpeedScale -= 0.8f * 0.1f;
             System.out.println(orbitSpeedScale);
         }
-        if (orbitSpeedScale < -1000f) orbitSpeedScale = -1000f;
+        if (orbitSpeedScale < 0f) orbitSpeedScale = 0f;
         if (orbitSpeedScale > 1000.0f) orbitSpeedScale = 1000.0f;
 
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
