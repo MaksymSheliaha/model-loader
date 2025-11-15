@@ -287,25 +287,14 @@ public class ModelViewer {
                 float sTilt = (float)Math.sin(tilt);
                 float cTilt = (float)Math.cos(tilt);
 
+                // We always set uLightCount every frame to avoid stale values
+                final int MAX_LIGHTS = 16; // keep in sync with shader
                 if(!absorbed) {
                     int count = bottles.length; // lights near bottles
+                    if (count > MAX_LIGHTS) count = MAX_LIGHTS;
                     glUniform1i(lightCountLoc, count);
-                    for (int i = 0; i < count; i++) {
-                        float baseAngle = (float)(2.0 * Math.PI * i / count);
-                        float orbitFreq = 0.3f + 0.15f * (i % 7);
-                        float angleTotal = baseAngle + current * orbitFreq * orbitSpeedScale;
-                        float xBase = (float)Math.cos(angleTotal) * currentRadius;
-                        float zBase = (float)Math.sin(angleTotal) * currentRadius;
-                        // Rotate around X by tilt: (x, y=0, z) -> (x, y'=-z*sin, z'=z*cos)
-                        float xPos =  xBase * cTilt;
-                        float yPos =  xBase * sTilt;
-                        float zPos =  zBase;
-                        int uPosLoc = glGetUniformLocation(shader.id(), "uLightPos[" + i + "]");
-                        int uColLoc = glGetUniformLocation(shader.id(), "uLightColor[" + i + "]");
-
-                        glUniform3f(uPosLoc, xPos, yPos, zPos);
-                        glUniform3f(uColLoc, 1.0f, 0.95f, 0.85f);
-                    }
+                } else {
+                    glUniform1i(lightCountLoc, 0);
                 }
                 // ----- Absorb trigger & reflection uniforms -----
                 if (!absorbed && orbitSpeedScale >= absorbSpeedMax && currentRadius <= Math.max(0.1f, 0.02f * maxRadius)) {
@@ -357,21 +346,29 @@ public class ModelViewer {
                     // Bottles (unlit + emissive)
                     for (int i = 0; i < bottles.length; i++) {
                         float baseAngle = (float) (2.0 * Math.PI * i / bottles.length);
-                        float orbitFreq = 0.3f + 0.15f;// * (i % 7);
+                        float orbitFreq = 0.3f + 0.15f * (i % 7);
                         float angleTotal = baseAngle + current * orbitFreq * orbitSpeedScale;
                         float xBase = (float) Math.cos(angleTotal) * currentRadius;
                         float zBase = (float) Math.sin(angleTotal) * currentRadius;
                         float yOff = xBase * sTilt;
                         float xPos = xBase * cTilt;
+                        float yPos = cyborgMidY + yOff;
                         float zPos = zBase;
                         float spinFreq = 0.6f + 0.25f * (i % 5);
                         float spin = current * spinFreq;
 
+                        // For light
+                        int uPosLoc = glGetUniformLocation(shader.id(), "uLightPos[" + i + "]");
+                        int uColLoc = glGetUniformLocation(shader.id(), "uLightColor[" + i + "]");
+                        glUniform3f(uPosLoc, xPos, yPos, zPos);
+                        glUniform3f(uColLoc, 1.0f, 0.95f, 0.85f);
+
+                        // For models
                         glUniform1i(unlitLoc, 1);
                         glUniform1i(emissiveLoc, 1);
 
                         Matrix4f m = new Matrix4f()
-                                .translate(xPos, cyborgMidY + yOff, zPos)
+                                .translate(xPos, yPos, zPos)
                                 .rotateY(-angleTotal) // face to center (approx)
                                 .rotateX(bottleOrientX[i])
                                 .rotateZ(bottleOrientZ[i])
