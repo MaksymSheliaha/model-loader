@@ -1,7 +1,5 @@
 package com.example.graphics;
 
-import org.lwjgl.opengl.GL11;
-
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
