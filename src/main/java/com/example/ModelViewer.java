@@ -21,16 +21,16 @@ public class ModelViewer {
 
     private ShaderProgram shader;
     private Camera camera = new Camera();
-    // Skybox resources
+
     private ShaderProgram skyboxShader;
     private Skybox skybox;
 
-    // Bottles collection (6 distinct models)
     private Model[] bottles;
     private float[] bottleScale;
     private float[] bottleOrientX;
     private float[] bottleOrientZ;
     private int[] bottleSpinAxis; // 0=Y, 1=X, 2=Z
+    private float[] bottleOrbitAngle;
 
     // Center model
     private Model cyborgModel;
@@ -44,31 +44,31 @@ public class ModelViewer {
     private float lastFrame;
 
     private float orbitSpeedScale = 1.0f;
-    // Radius control based on cyborg size
-    private float minRadius, maxRadius; // min = 1x cyborg radius, max = 5x cyborg radius
-    private float currentRadius;        // smoothed radius used for orbiting
-    private final float speedMin = 0.1f; // speed where radius starts to shrink
-    private final float speedMax = 2.5f; // speed where radius reaches min
-    private final float tiltSpeedMin = 4.0f; // speed where radius starts to shrink
-    private final float tiltSpeedMax = 10.0f; // speed where radius reaches min
-    private final float rotationSpeedMin = 7.5f; // speed where cyborg rotation starts
-    private final float rotationSpeedMax = 12.5f; // speed where cyborg rotation reaches max
-    private final float absorbSpeedMin = 10.f;
-    private final float absorbSpeedMax = 12.5f;
+
+    private float minRadius, maxRadius;
+    private float currentRadius;
+    private final float speedMin = 0.2f;
+    private final float speedMax = 5f;
+    private final float tiltSpeedMin = 8f;
+    private final float tiltSpeedMax = 20f;
+    private final float rotationSpeedMin = 15f;
+    private final float rotationSpeedMax = 25f;
+    private final float absorbSpeedMin = 20f;
+    private final float absorbSpeedMax = 25f;
     // Tilt control
-    private float tiltPhase = (float)Math.PI/2.f; // evolves over time when speed >= threshold
-    private static final float MAX_TILT = (float)(Math.PI / 4.0); // [-pi/4, pi/4]
-    private static final float TILT_SPEED_GAIN = 0.5f; // rad/s per unit over threshold
+    private float tiltPhase = (float)Math.PI/2.f;
+    private static final float MAX_TILT = (float)(Math.PI / 4.0);
+    private static final float TILT_SPEED_GAIN = 0.5f;
 
     // Cyborg rotation state (to avoid jerks)
-    private float cyborgAngle = 0.0f;  // accumulated rotation angle (radians)
-    private float cyborgOmega = 0.0f;  // current angular velocity (rad/s), smoothed
-    private final float cyborgOmegaMax = 3.0f; // max angular speed at rotationSpeedMax (rad/s)
+    private float cyborgAngle = 0.0f;
+    private float cyborgOmega = 0.0f;
+    private final float cyborgOmegaMax = 3.0f;
 
-    private boolean absorbed = false; // has the absorb event happened
-    private float reflectStrength = 0.0f; // animate reflection strength
-    private Texture cyborgAlbedoTex; // original texture alias if needed
-    private Texture cyborgAltTex;    // cyborg_normal.png
+    private boolean absorbed = false;
+    private float reflectStrength = 0.0f;
+    private Texture cyborgAlbedoTex;
+    private Texture cyborgAltTex;
 
     public static void main(String[] args) { new ModelViewer().run(); }
 
@@ -130,21 +130,19 @@ public class ModelViewer {
         cyborgModel = ModelLoader.loadObjWithTexture("model/cyborg/cyborg.obj", "model/cyborg/cyborg_diffuse.png");
         float targetSize = 2.0f;
         cyborgScale = targetSize / Math.max(1e-6f, cyborgModel.getMaxExtent());
-        cyborgScale *= 5f; // трохи більший кіборг
+        cyborgScale *= 5f;
 
-        // Compute cyborg bounding sphere radius in world space
         Vector3f cmin = cyborgModel.getBoundsMin();
         Vector3f cmax = cyborgModel.getBoundsMax();
         Vector3f size = new Vector3f(cmax).sub(cmin).mul(cyborgScale);
-        float cyborgRadius = size.length() * 0.5f; // half of diagonal length
+        float cyborgRadius = size.length() * 0.5f;
         minRadius = cyborgRadius;
         maxRadius = 5.0f * cyborgRadius;
-        currentRadius = maxRadius; // start wide
+        currentRadius = maxRadius;
 
-        // Preload alt texture for cyborg (normal map used as albedo per request)
         cyborgAltTex = new Texture("model/cyborg/cyborg_normal.png");
         cyborgAlbedoTex = new Texture("model/cyborg/cyborg_diffuse.png");
-        // Six distinct bottle models/textures from resources/model
+
         String[][] bottleRes = new String[][]{
                 {"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
                 {"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
@@ -164,11 +162,14 @@ public class ModelViewer {
         bottleOrientX = new float[bottleRes.length];
         bottleOrientZ = new float[bottleRes.length];
         bottleSpinAxis = new int[bottleRes.length];
+        bottleOrbitAngle = new float[bottleRes.length];
 
         for (int i = 0; i < bottleRes.length; i++) {
             bottles[i] = ModelLoader.loadObjWithTexture(bottleRes[i][0], bottleRes[i][1]);
             float extent = Math.max(1e-6f, bottles[i].getMaxExtent());
             bottleScale[i] = targetSize / extent;
+
+            bottleOrbitAngle[i] = (float) (2.0 * Math.PI * i / bottleRes.length);
 
             Vector3f min = bottles[i].getBoundsMin();
             Vector3f max = bottles[i].getBoundsMax();
@@ -214,9 +215,8 @@ public class ModelViewer {
                 Matrix4f projection = new Matrix4f().perspective((float)Math.toRadians(60), (float)width/height, 0.1f, 100f);
                 int projLoc = skyboxShader.getUniformLocation("uProjection");
                 glUniformMatrix4fv(projLoc, false, projection.get(fb));
-                // View matrix without translation
                 Matrix4f view = camera.getViewMatrix();
-                view.m30(0).m31(0).m32(0); // remove translation component
+                view.m30(0).m31(0).m32(0);
                 int viewLoc = skyboxShader.getUniformLocation("uViewRot");
                 glUniformMatrix4fv(viewLoc, false, view.get(fb));
             }
@@ -251,12 +251,10 @@ public class ModelViewer {
                 glUniform1f(specLoc, 0.7f);
                 glUniform1f(shinLoc, 48.0f);
 
-                // Bind env map to unit 1
                 glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
                 skybox.bindTexture(1);
 
-                // ----- Radius update -----
                 float targetRadius;
                 if (orbitSpeedScale < absorbSpeedMin) {
                     float t = (orbitSpeedScale - speedMin) / (speedMax - speedMin);
@@ -272,7 +270,6 @@ public class ModelViewer {
                 float smooth = 1f - (float) Math.exp(-5f * Math.max(0.0001f, deltaTime));
                 currentRadius += (targetRadius - currentRadius) * smooth;
 
-                // ----- Tilt update & compute s/c tilt BEFORE usage -----
                 if (orbitSpeedScale >= tiltSpeedMin) {
                     float omega;
                     if (orbitSpeedScale < tiltSpeedMax){
@@ -283,20 +280,19 @@ public class ModelViewer {
                     tiltPhase += omega * deltaTime;
                     if(tiltPhase>Math.PI) tiltPhase -= (float) (Math.PI*2);
                 }
-                float tilt = (float)Math.cos(tiltPhase) * MAX_TILT; // [-pi/4..pi/4]
+                float tilt = (float)Math.cos(tiltPhase) * MAX_TILT;
                 float sTilt = (float)Math.sin(tilt);
                 float cTilt = (float)Math.cos(tilt);
 
-                // We always set uLightCount every frame to avoid stale values
-                final int MAX_LIGHTS = 16; // keep in sync with shader
+                final int MAX_LIGHTS = 16;
                 if(!absorbed) {
-                    int count = bottles.length; // lights near bottles
+                    int count = bottles.length;
                     if (count > MAX_LIGHTS) count = MAX_LIGHTS;
                     glUniform1i(lightCountLoc, count);
                 } else {
                     glUniform1i(lightCountLoc, 0);
                 }
-                // ----- Absorb trigger & reflection uniforms -----
+
                 if (!absorbed && orbitSpeedScale >= absorbSpeedMax && currentRadius <= Math.max(0.1f, 0.02f * maxRadius)) {
                     absorbed = true;
                     glUniform1i(lightCountLoc, 0);
@@ -319,7 +315,7 @@ public class ModelViewer {
                     glUniform1f(uGlowLoc, 0.0f);
                 }
 
-                // ----- Cyborg render with smooth rotation -----
+
                 glUniform1i(unlitLoc, 0);
                 glUniform1i(emissiveLoc, 0);
                 Matrix4f cybM = new Matrix4f().scale(cyborgScale);
@@ -337,17 +333,18 @@ public class ModelViewer {
                 glUniformMatrix4fv(modelLoc, false, cybM.get(fb));
                 cyborgModel.render();
 
-                // Calculate cyborg mid-height in world space
+
                 Vector3f cyborgMin = cyborgModel.getBoundsMin();
                 Vector3f cyborgMax = cyborgModel.getBoundsMax();
                 float cyborgMidY = (cyborgMin.y + cyborgMax.y) * 0.5f * cyborgScale;
 
                 if(!absorbed) {
-                    // Bottles (unlit + emissive)
                     for (int i = 0; i < bottles.length; i++) {
-                        float baseAngle = (float) (2.0 * Math.PI * i / bottles.length);
                         float orbitFreq = 0.3f + 0.15f;// * (i % 7);
-                        float angleTotal = baseAngle + current * orbitFreq * orbitSpeedScale;
+                        float orbitOmega = orbitFreq * orbitSpeedScale;
+                        bottleOrbitAngle[i] += orbitOmega * deltaTime;
+
+                        float angleTotal = bottleOrbitAngle[i];
                         float xBase = (float) Math.cos(angleTotal) * currentRadius;
                         float zBase = (float) Math.sin(angleTotal) * currentRadius;
                         float yOff = xBase * sTilt;
@@ -357,19 +354,18 @@ public class ModelViewer {
                         float spinFreq = 0.8f + 0.25f * (i % 5);
                         float spin = current * spinFreq;
 
-                        // For light
                         int uPosLoc = glGetUniformLocation(shader.id(), "uLightPos[" + i + "]");
                         int uColLoc = glGetUniformLocation(shader.id(), "uLightColor[" + i + "]");
                         glUniform3f(uPosLoc, xPos, yPos, zPos);
                         glUniform3f(uColLoc, 1.0f, 0.95f, 0.85f);
 
-                        // For models
+
                         glUniform1i(unlitLoc, 1);
                         glUniform1i(emissiveLoc, 1);
 
                         Matrix4f m = new Matrix4f()
                                 .translate(xPos, yPos, zPos)
-                                .rotateY(-angleTotal) // face to center (approx)
+                                .rotateY(-angleTotal)
                                 .rotateX(bottleOrientX[i])
                                 .rotateZ(bottleOrientZ[i])
                                 .scale(bottleScale[i]);
@@ -409,7 +405,7 @@ public class ModelViewer {
             orbitSpeedScale -= 0.8f * 0.1f;
             System.out.println(orbitSpeedScale);
         }
-        if (orbitSpeedScale < 0f) orbitSpeedScale = 0f;
+        if (orbitSpeedScale < -20f) orbitSpeedScale = -20f;
         if (orbitSpeedScale > 1000.0f) orbitSpeedScale = 1000.0f;
 
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
