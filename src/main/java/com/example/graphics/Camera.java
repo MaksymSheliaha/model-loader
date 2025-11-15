@@ -5,7 +5,7 @@ import org.joml.Vector3f;
 
 public class Camera {
     private final Vector3f position = new Vector3f(0, 0, 3);
-    private float yaw = -90f; // facing -Z
+    private float yaw = -90f;
     private float pitch = 0f;
 
     public Matrix4f getViewMatrix() {
@@ -18,8 +18,6 @@ public class Camera {
         Vector3f center = new Vector3f(position).add(front);
         return new Matrix4f().lookAt(position, center, up);
     }
-
-    public void move(Vector3f delta) { position.add(delta); }
 
     public void processKeyboard(
             boolean forward,

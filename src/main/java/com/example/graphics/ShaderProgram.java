@@ -1,8 +1,6 @@
 package com.example.graphics;
 
 import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL20;
-import org.lwjgl.opengl.GL30;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -17,38 +15,18 @@ public class ShaderProgram {
     private final int programId;
 
     public ShaderProgram(String vertexResource, String fragmentResource) {
-        int vertexId = createShaderFromResource(vertexResource, GL20.GL_VERTEX_SHADER);
-        int fragmentId = createShaderFromResource(fragmentResource, GL20.GL_FRAGMENT_SHADER);
+        int vertexId = createShaderFromResource(vertexResource, GL_VERTEX_SHADER);
+        int fragmentId = createShaderFromResource(fragmentResource, GL_FRAGMENT_SHADER);
         programId = glCreateProgram();
         glAttachShader(programId, vertexId);
         glAttachShader(programId, fragmentId);
         glLinkProgram(programId);
-        if (glGetProgrami(programId, GL_LINK_STATUS) == GL11.GL_FALSE) {
+        if (glGetProgrami(programId, GL_LINK_STATUS) == GL_FALSE) {
             throw new RuntimeException("Shader link error: " + glGetProgramInfoLog(programId));
         }
         glDetachShader(programId, vertexId);
         glDetachShader(programId, fragmentId);
         glDeleteShader(vertexId);
-        glDeleteShader(fragmentId);
-    }
-
-    public ShaderProgram(String vertexResource, String geometryResource, String fragmentResource) {
-        int vertexId = createShaderFromResource(vertexResource, GL20.GL_VERTEX_SHADER);
-        int geomId = createShaderFromResource(geometryResource, org.lwjgl.opengl.GL32.GL_GEOMETRY_SHADER);
-        int fragmentId = createShaderFromResource(fragmentResource, GL20.GL_FRAGMENT_SHADER);
-        programId = glCreateProgram();
-        glAttachShader(programId, vertexId);
-        glAttachShader(programId, geomId);
-        glAttachShader(programId, fragmentId);
-        glLinkProgram(programId);
-        if (glGetProgrami(programId, GL_LINK_STATUS) == GL11.GL_FALSE) {
-            throw new RuntimeException("Shader link error: " + glGetProgramInfoLog(programId));
-        }
-        glDetachShader(programId, vertexId);
-        glDetachShader(programId, geomId);
-        glDetachShader(programId, fragmentId);
-        glDeleteShader(vertexId);
-        glDeleteShader(geomId);
         glDeleteShader(fragmentId);
     }
 

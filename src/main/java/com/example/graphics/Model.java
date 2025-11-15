@@ -7,10 +7,9 @@ import java.util.ArrayList;
 
 public class Model {
     private final List<Mesh> meshes = new ArrayList<>();
-    private final Texture texture; // Single texture for simplicity
-    private Texture overrideTexture; // optional runtime override
+    private final Texture texture;
+    private Texture overrideTexture;
 
-    // Bounding box in model space
     private Vector3f boundsMin = new Vector3f(0,0,0);
     private Vector3f boundsMax = new Vector3f(0,0,0);
 
@@ -29,7 +28,7 @@ public class Model {
     public void delete() {
         for (Mesh m : meshes) m.delete();
         texture.delete();
-        // overrideTexture is managed externally; do not delete here
+        if(overrideTexture!=null) overrideTexture.delete();
     }
 
     public void setBounds(Vector3f min, Vector3f max) {
@@ -40,9 +39,7 @@ public class Model {
     public Vector3f getBoundsMin() { return new Vector3f(boundsMin); }
     public Vector3f getBoundsMax() { return new Vector3f(boundsMax); }
 
-    /**
-     * Returns the largest side length of the bounding box (max of width/height/depth).
-     */
+
     public float getMaxExtent() {
         float sx = Math.abs(boundsMax.x - boundsMin.x);
         float sy = Math.abs(boundsMax.y - boundsMin.y);
@@ -50,6 +47,7 @@ public class Model {
         return Math.max(sx, Math.max(sy, sz));
     }
 
-    public void setOverrideTexture(Texture tex) { this.overrideTexture = tex; }
-    public void clearOverrideTexture() { this.overrideTexture = null; }
+    public void setOverrideTexture(Texture tex) {
+        this.overrideTexture = tex;
+    }
 }

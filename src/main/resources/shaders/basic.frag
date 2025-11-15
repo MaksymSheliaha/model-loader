@@ -21,7 +21,7 @@ uniform float uAmbient;
 uniform float uSpecularStrength;
 uniform float uShininess;
 uniform bool uEmissive;
-uniform bool uUnlit; // if true, render texture without lighting
+uniform bool uUnlit;
 
 void main() {
     vec3 baseColor = texture(uTexture, vTex).rgb;
@@ -51,16 +51,14 @@ void main() {
         lighting += 0.35 * vec3(1.0);
     }
 
-    // Environment reflection
     if (uReflect) {
-        vec3 I = normalize(vFragPos - uViewPos); // Incident vector
-        vec3 R = reflect(I, normalize(vNormal)); // Reflection vector
-        vec3 envCol = texture(uEnvMap, R).rgb; // Sample environment map
-        lighting = mix(lighting, envCol, clamp(uReflectStrength, 0.0, 1.0)); // Mix with existing lighting
+        vec3 I = normalize(vFragPos - uViewPos);
+        vec3 R = reflect(I, normalize(vNormal));
+        vec3 envCol = texture(uEnvMap, R).rgb;
+        lighting = mix(lighting, envCol, clamp(uReflectStrength, 0.0, 1.0));
     }
 
-    // Glow effect
-    lighting += uGlow * vec3(1.0); // Additive glow
+    lighting += uGlow * vec3(1.0);
 
     FragColor = vec4(lighting, 1.0);
 }

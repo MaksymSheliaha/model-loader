@@ -123,7 +123,7 @@ public class ModelViewer {
         glUseProgram(skyboxShader.id());
         int skyboxLoc = skyboxShader.getUniformLocation("uSkybox");
         glUniform1i(skyboxLoc, 0);
-        CubeMapTexture cubeMap = new CubeMapTexture("environment/cubemap/space");
+        CubeMapTexture cubeMap = new CubeMapTexture("environment/cubemap/hitori");
         skybox = new Skybox(cubeMap);
 
         // Center model
@@ -157,18 +157,6 @@ public class ModelViewer {
                 {"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
                 {"model/heineken/heineken.obj", "model/heineken/material_baseColor.png"},
                 {"model/corona/Corona.obj", "model/corona/BotellaText.jpg"},
-                {"model/stella/stella-artois.obj", "model/stella/STELLAARTOIS2.png"},
-                {"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
-                {"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
-                {"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
-                {"model/heineken/heineken.obj", "model/heineken/material_baseColor.png"},
-                {"model/corona/Corona.obj", "model/corona/BotellaText.jpg"},
-                {"model/stella/stella-artois.obj", "model/stella/STELLAARTOIS2.png"},
-                {"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
-                {"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
-                {"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
-                {"model/heineken/heineken.obj", "model/heineken/material_baseColor.png"},
-                {"model/corona/Corona.obj", "model/corona/BotellaText.jpg"},
                 {"model/stella/stella-artois.obj", "model/stella/STELLAARTOIS2.png"}
         };
         bottles = new Model[bottleRes.length];
@@ -182,7 +170,6 @@ public class ModelViewer {
             float extent = Math.max(1e-6f, bottles[i].getMaxExtent());
             bottleScale[i] = targetSize / extent;
 
-            // Визначення найдовшої осі для орієнтації вертикально
             Vector3f min = bottles[i].getBoundsMin();
             Vector3f max = bottles[i].getBoundsMax();
             float dx = Math.abs(max.x - min.x);
@@ -195,17 +182,17 @@ public class ModelViewer {
             boolean flip = modelPath.contains("bud") || modelPath.contains("stella") || modelPath.contains("heineken");
 
             if (xLongest) {
-                bottleOrientZ[i] = (float)Math.toRadians(flip ? -90.0 : 90.0); // X -> Y
+                bottleOrientZ[i] = (float)Math.toRadians(flip ? -90.0 : 90.0);
                 bottleOrientX[i] = 0.0f;
-                bottleSpinAxis[i] = 1; // обертання навколо (початкової) X -> стане Y
+                bottleSpinAxis[i] = 1;
             } else if (zLongest) {
-                bottleOrientX[i] = (float)Math.toRadians(flip ? 90.0 : -90.0); // Z -> Y
+                bottleOrientX[i] = (float)Math.toRadians(flip ? 90.0 : -90.0);
                 bottleOrientZ[i] = 0.0f;
-                bottleSpinAxis[i] = 2; // обертання навколо (початкової) Z -> стане Y
+                bottleSpinAxis[i] = 2;
             } else {
                 bottleOrientX[i] = 0.0f;
                 bottleOrientZ[i] = 0.0f;
-                bottleSpinAxis[i] = 0; // вже по Y
+                bottleSpinAxis[i] = 0;
             }
         }
     }
@@ -220,7 +207,6 @@ public class ModelViewer {
             glClearColor(0.02f, 0.02f, 0.03f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            // Render skybox first (depth = far plane) or last with LEQUAL; choose first for simplicity
             glDepthFunc(GL_LEQUAL);
             skyboxShader.use();
             try (var stack = stackPush()) {
@@ -316,6 +302,7 @@ public class ModelViewer {
                         float zPos =  zBase;
                         int uPosLoc = glGetUniformLocation(shader.id(), "uLightPos[" + i + "]");
                         int uColLoc = glGetUniformLocation(shader.id(), "uLightColor[" + i + "]");
+
                         glUniform3f(uPosLoc, xPos, yPos, zPos);
                         glUniform3f(uColLoc, 1.0f, 0.95f, 0.85f);
                     }
@@ -323,6 +310,7 @@ public class ModelViewer {
                 // ----- Absorb trigger & reflection uniforms -----
                 if (!absorbed && orbitSpeedScale >= absorbSpeedMax && currentRadius <= Math.max(0.1f, 0.02f * maxRadius)) {
                     absorbed = true;
+                    glUniform1i(lightCountLoc, 0);
                     reflectStrength = 0.0f;
                     if (cyborgAltTex != null) cyborgModel.setOverrideTexture(cyborgAltTex);
                 }
@@ -389,12 +377,11 @@ public class ModelViewer {
                                 .rotateZ(bottleOrientZ[i])
                                 .scale(bottleScale[i]);
 
-                        m = switch (bottleSpinAxis[i]) {
+                        switch (bottleSpinAxis[i]) {
                             case 0 -> m.rotateY(spin);
                             case 1 -> m.rotateX(spin);
                             case 2 -> m.rotateZ(spin);
-                            default -> m;
-                        };
+                        }
 
                         glUniformMatrix4fv(modelLoc, false, m.get(fb));
                         bottles[i].render();

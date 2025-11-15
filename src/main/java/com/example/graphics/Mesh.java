@@ -34,7 +34,7 @@ public class Mesh {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, ib, GL_STATIC_DRAW);
         memFree(ib);
 
-        int stride = 8 * Float.BYTES; // pos(3)+normal(3)+tex(2)
+        int stride = 8 * Float.BYTES;
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0);
         glEnableVertexAttribArray(1);
@@ -47,7 +47,7 @@ public class Mesh {
 
     public void render() {
         glBindVertexArray(vao);
-        glDrawElements(GL11.GL_TRIANGLES, vertexCount, GL11.GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, vertexCount, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
 

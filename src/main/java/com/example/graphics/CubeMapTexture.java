@@ -13,10 +13,6 @@ import static org.lwjgl.opengl.GL30.glGenerateMipmap;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.*;
 
-/**
- * Loads a cubemap texture from 6 image files inside a folder.
- * Expected file names: posx.jpg, negx.jpg, posy.jpg, negy.jpg, posz.jpg, negz.jpg (or .png)
- */
 public class CubeMapTexture {
     private final int id;
 
@@ -40,18 +36,17 @@ public class CubeMapTexture {
                 throw new RuntimeException("Failed to load cubemap face: " + base + "(.jpg/.png)");
             }
         }
-        // Optional mipmaps (not required if using only background sampling)
         glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
     }
 
     private String tryLoadImage(String resourcePath, int target) {
         try {
-            ByteBuffer imageBuffer = ioResourceToByteBuffer(resourcePath, 8 * 1024);
+            ByteBuffer imageBuffer = ioResourceToByteBuffer(resourcePath);
             try (var stack = stackPush()) {
                 IntBuffer w = stack.mallocInt(1);
                 IntBuffer h = stack.mallocInt(1);
                 IntBuffer comp = stack.mallocInt(1);
-                STBImage.stbi_set_flip_vertically_on_load(false); // no flip for cubemap
+                STBImage.stbi_set_flip_vertically_on_load(false);
                 ByteBuffer image = STBImage.stbi_load_from_memory(imageBuffer, w, h, comp, 0);
                 if (image == null) return null;
                 int channels = comp.get(0);
@@ -66,7 +61,7 @@ public class CubeMapTexture {
         }
     }
 
-    private static ByteBuffer ioResourceToByteBuffer(String resource, int bufferSize) throws IOException {
+    private static ByteBuffer ioResourceToByteBuffer(String resource) throws IOException {
         try (InputStream source = CubeMapTexture.class.getClassLoader().getResourceAsStream(resource)) {
             if (source == null) throw new IOException("Resource not found: " + resource);
             byte[] data = source.readAllBytes();
