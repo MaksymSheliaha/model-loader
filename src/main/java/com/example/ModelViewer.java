@@ -150,13 +150,13 @@ public class ModelViewer {
 
         String[][] bottleRes = new String[][]{
                 {"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
-                //{"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
-                //{"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
-                //{"model/heineken/heineken.obj", "model/heineken/material_baseColor.png"},
-                //{"model/corona/Corona.obj", "model/corona/BotellaText.jpg"},
-                //{"model/stella/stella-artois.obj", "model/stella/STELLAARTOIS2.png"},
-                //{"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
-                //{"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
+                {"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
+                {"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
+                {"model/heineken/heineken.obj", "model/heineken/material_baseColor.png"},
+                {"model/corona/Corona.obj", "model/corona/BotellaText.jpg"},
+                {"model/stella/stella-artois.obj", "model/stella/STELLAARTOIS2.png"},
+                {"model/beer-v1/beer.obj", "model/beer-v1/14043_16_oz._Beer_Bottle_diff.jpg"},
+                {"model/bud/bud.obj", "model/bud/BUD2.jpeg"},
                 {"model/beer-v2/beer.obj", "model/beer-v2/14043_16_oz._Beer_Bottle_diff_final.jpg"},
                 {"model/heineken/heineken.obj", "model/heineken/material_baseColor.png"},
                 {"model/corona/Corona.obj", "model/corona/BotellaText.jpg"},
@@ -203,8 +203,7 @@ public class ModelViewer {
         }
 
         depthCubeShader = new ShaderProgram("shaders/depth_cube.vert", "shaders/depth_cube.frag");
-        // Shadow maps array sized to bottle count (capped later)
-        shadowMaps = new PointLightShadowMap[16];
+        shadowMaps = new PointLightShadowMap[bottleRes.length];
         for (int i = 0; i < shadowMaps.length; i++) {
             shadowMaps[i] = new PointLightShadowMap(512, shadowFarPlane);
         }
@@ -236,8 +235,6 @@ public class ModelViewer {
             skybox.render();
             glDepthFunc(GL_LESS);
 
-            // Precompute radius, tilt and light positions once per frame
-            // Update currentRadius smoothly
             float targetRadius;
             if (orbitSpeedScale < absorbSpeedMin) {
                 float t = (orbitSpeedScale - speedMin) / (speedMax - speedMin);
@@ -251,7 +248,6 @@ public class ModelViewer {
             float smooth = 1f - (float) Math.exp(-5f * Math.max(0.0001f, deltaTime));
             currentRadius += (targetRadius - currentRadius) * smooth;
 
-            // Update tilt phase and compute tilt
             if (orbitSpeedScale >= tiltSpeedMin) {
                 float omega = (orbitSpeedScale < tiltSpeedMax)
                         ? TILT_SPEED_GAIN * (orbitSpeedScale - tiltSpeedMin)
@@ -263,7 +259,6 @@ public class ModelViewer {
             float sTilt = (float)Math.sin(tilt);
             float cTilt = (float)Math.cos(tilt);
 
-            // Cyborg vertical center
             Vector3f cyborgMinForLights = cyborgModel.getBoundsMin();
             Vector3f cyborgMaxForLights = cyborgModel.getBoundsMax();
             float cyborgMidYForLights = (cyborgMinForLights.y + cyborgMaxForLights.y) * 0.5f * cyborgScale;
@@ -273,12 +268,10 @@ public class ModelViewer {
             float[] angleTotals = new float[totalLights];
             Vector3f[] precomputedLightPos = new Vector3f[totalLights];
             for (int i = 0; i < totalLights; i++) {
-                // Advance orbit angle
-                float orbitFreq = 0.3f + 0.15f * (i % 5);
+                float orbitFreq = 0.3f + 0.15f;
                 float orbitOmega = orbitFreq * orbitSpeedScale;
                 bottleOrbitAngle[i] += orbitOmega * deltaTime;
                 angleTotals[i] = bottleOrbitAngle[i];
-                // Compute light position
                 float xBase = (float)Math.cos(angleTotals[i]) * currentRadius;
                 float zBase = (float)Math.sin(angleTotals[i]) * currentRadius;
                 float yOff = xBase * sTilt;
@@ -288,7 +281,6 @@ public class ModelViewer {
                 precomputedLightPos[i] = new Vector3f(xPos, yPos, zPos);
             }
 
-            // Build shadow maps using precomputed positions
             if (!absorbed) {
                 for (int li = 0; li < totalLights; li++) {
                     Vector3f lightPos = precomputedLightPos[li];
@@ -337,7 +329,7 @@ public class ModelViewer {
             glUniform1i(shadowEnabledLoc, absorbed ? 0 : 1);
             glUniform1f(shadowFarLoc, shadowFarPlane);
             if (!absorbed) {
-                int bindCount = Math.min(totalLights, 12); // limited by shader samplers
+                int bindCount = Math.min(totalLights, 12);
                 for (int i = 0; i < bindCount; i++) {
                     glActiveTexture(GL_TEXTURE2 + i);
                     glBindTexture(GL_TEXTURE_CUBE_MAP, shadowMaps[i].depthCubeTex);
@@ -375,7 +367,6 @@ public class ModelViewer {
                     glUniform1i(lightCountLoc, 0);
                 }
 
-                // Reflect/glow toggles
                 if (!absorbed && orbitSpeedScale >= absorbSpeedMax && currentRadius <= Math.max(0.1f, 0.02f * maxRadius)) {
                     absorbed = true;
                     glUniform1i(lightCountLoc, 0);
@@ -398,7 +389,6 @@ public class ModelViewer {
                     glUniform1f(uGlowLoc, 0.0f);
                 }
 
-                // Render cyborg
                 glUniform1i(unlitLoc, 0);
                 glUniform1i(emissiveLoc, 0);
                 Matrix4f cybM = new Matrix4f().scale(cyborgScale);
@@ -415,10 +405,9 @@ public class ModelViewer {
                 glUniformMatrix4fv(modelLoc, false, cybM.get(fb));
                 cyborgModel.render();
 
-                // Render bottles using precomputed positions and angles
                 if(!absorbed) {
                     for (int i = 0; i < bottles.length; i++) {
-                        float spinFreq = 0.8f + 0.25f * (i % 5);
+                        float spinFreq = 0.8f + 0.25f * (i % bottles.length);
                         float spin = current * spinFreq;
 
                         Vector3f lp = (i < totalLights) ? precomputedLightPos[i] : null;

@@ -8,9 +8,6 @@ import static org.lwjgl.opengl.GL13.*;
 import static org.lwjgl.opengl.GL30.*;
 import static org.lwjgl.opengl.GL32.glFramebufferTexture;
 
-/**
- * Manages a depth cubemap for a single point light.
- */
 public class PointLightShadowMap {
     public final int fbo;
     public final int depthCubeTex;
