@@ -33,7 +33,6 @@ public class ModelViewer {
     private int[] bottleSpinAxis; // 0=Y, 1=X, 2=Z
     private float[] bottleOrbitAngle;
 
-    // Center model
     private Model cyborgModel;
     private float cyborgScale = 1.0f;
 
@@ -56,12 +55,11 @@ public class ModelViewer {
     private final float rotationSpeedMax = 25f;
     private final float absorbSpeedMin = 20f;
     private final float absorbSpeedMax = 25f;
-    // Tilt control
+
     private float tiltPhase = (float)Math.PI/2.f;
     private static final float MAX_TILT = (float)(Math.PI / 4.0);
     private static final float TILT_SPEED_GAIN = 0.5f;
 
-    // Cyborg rotation state (to avoid jerks)
     private float cyborgAngle = 0.0f;
     private float cyborgOmega = 0.0f;
     private final float cyborgOmegaMax = 3.0f;
@@ -118,20 +116,17 @@ public class ModelViewer {
 
     private void initScene() {
         shader = new ShaderProgram("shaders/basic.vert", "shaders/basic.frag");
-        // After shader created, set sampler units
         glUseProgram(shader.id());
         glUniform1i(shader.getUniformLocation("uTexture"), 0);
         glUniform1i(shader.getUniformLocation("uEnvMap"), 1);
 
-        // Load skybox cubemap & shader
         skyboxShader = new ShaderProgram("shaders/skybox.vert", "shaders/skybox.frag");
         glUseProgram(skyboxShader.id());
         int skyboxLoc = skyboxShader.getUniformLocation("uSkybox");
         glUniform1i(skyboxLoc, 0);
-        CubeMapTexture cubeMap = new CubeMapTexture("environment/cubemap/hitori");
+        CubeMapTexture cubeMap = new CubeMapTexture("environment/cubemap/space");
         skybox = new Skybox(cubeMap);
 
-        // Center model
         cyborgModel = ModelLoader.loadObjWithTexture("model/cyborg/cyborg.obj", "model/cyborg/cyborg_diffuse.png");
         float targetSize = 2.0f;
         cyborgScale = targetSize / Math.max(1e-6f, cyborgModel.getMaxExtent());

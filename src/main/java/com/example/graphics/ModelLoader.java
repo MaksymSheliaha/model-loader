@@ -86,7 +86,6 @@ public class ModelLoader {
         return arr;
     }
 
-    // Tiny utility to read resources as ByteBuffer for Assimp
     private static class Utils {
         static java.nio.ByteBuffer ioResourceToByteBuffer(String resource) {
             try (java.io.InputStream is = ModelLoader.class.getClassLoader().getResourceAsStream(resource)) {

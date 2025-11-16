@@ -4,9 +4,6 @@ import static org.lwjgl.opengl.GL15.*;
 import static org.lwjgl.opengl.GL20.*;
 import static org.lwjgl.opengl.GL30.*;
 
-/**
- * Simple skybox renderer: creates a cube VAO/VBO and renders with a cubemap texture.
- */
 public class Skybox {
     private final int vao;
     private final int vbo;
