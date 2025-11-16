@@ -309,7 +309,6 @@ public class ModelViewer {
                 glViewport(0, 0, width, height);
             }
 
-            // Main pass
             shader.use();
             int projLoc = shader.getUniformLocation("uProjection");
             int viewLoc = shader.getUniformLocation("uView");
@@ -454,11 +453,11 @@ public class ModelViewer {
 
         if (glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_KP_ADD) == GLFW_PRESS) {
             orbitSpeedScale += 0.8f * 0.1f;
-            System.out.println(orbitSpeedScale);
+            //System.out.println(orbitSpeedScale);
         }
         if (glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS) {
             orbitSpeedScale -= 0.8f * 0.1f;
-            System.out.println(orbitSpeedScale);
+            //System.out.println(orbitSpeedScale);
         }
         if (orbitSpeedScale < -20f) orbitSpeedScale = -20f;
         if (orbitSpeedScale > 1000.0f) orbitSpeedScale = 1000.0f;
